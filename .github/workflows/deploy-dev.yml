@@ -99,6 +99,8 @@ jobs:
           cp docker-compose.yml /opt/rackula/rackula-dev/docker-compose.yml
           install -m 600 /dev/null /opt/rackula/rackula-dev/.env
           cat > /opt/rackula/rackula-dev/.env << 'EOF'
+          RACKULA_CONTAINER_NAME=rackula-dev
+          RACKULA_API_CONTAINER_NAME=rackula-api-dev
           CORS_ORIGIN=https://d.racku.la
           ALLOW_INSECURE_CORS=false
           EOF
@@ -107,7 +109,7 @@ jobs:
         run: |
           cd /opt/rackula/rackula-dev
           docker compose --profile persist pull
-          docker compose --profile persist up -d
+          docker compose --profile persist up -d --remove-orphans
 
   smoke-test:
     needs: deploy

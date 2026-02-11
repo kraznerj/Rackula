@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-02-10
+## [0.8.0] - 2026-02-11
 
 ### Added
 
@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mobile floating undo/redo controls (#1046, PR #1098)
 - Virtual keyboard viewport adaptation (#1049, PR #1097)
 - Phase 1 NetBox homelab device import: 40 image-priority devices (#1109, PR #1134)
+- Phase 2 NetBox homelab device expansion: 45 image-backed devices (#1111, PR #1188)
 - E2E test infrastructure and wizard keyboard shortcuts (#903, PR #1128)
 - Layout store contract safety net tests (#910, PR #1083)
 - BottomSheet interaction test coverage (PR #1072)
@@ -49,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zip export folder names sanitized (PR #1074)
 - Review & Clean Up action routed through real cleanup workflow (#1125, PR #1138)
 - Dev deploy env persistence and checkout permissions fixed (#1147, PR #1148, #1149)
+- Persistence health validation hardened to prevent false-positive API status (#1087, PR #1197)
+- API typecheck errors in security and storage modules resolved (PR #1186, #1192)
 
 ### Security
 
@@ -71,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped dependencies: svelte 5.49.1→5.50.0, simple-icons, @types/node, eslint, Playwright, and others (PR #1139, #1140, #1141, #1142, #1143, #1146)
 - Updated copyright year and owner in LICENSE (PR #1166)
 - YAML viewer/editor spike recommendations (#573, PR #1173)
+- ESLint v10 peer dependency conflict reverted pending ecosystem support (#1198, PR #1199)
 
 ## [0.7.9] - 2026-02-03
 

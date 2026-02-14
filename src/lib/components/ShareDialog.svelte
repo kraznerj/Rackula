@@ -33,8 +33,8 @@
 
   // Generate share URL
   const shareUrl = $derived(generateShareUrl(layout));
-  const encodedLength = $derived(encodeLayout(layout).length);
-  const fitsInQR = $derived(canFitInQR(shareUrl));
+  const encodedLength = $derived(encodeLayout(layout)?.length ?? 0);
+  const fitsInQR = $derived(shareUrl ? canFitInQR(shareUrl) : false);
 
   // QR code generation state
   let qrDataUrl = $state<string | null>(null);
@@ -55,7 +55,7 @@
   });
 
   async function generateQR() {
-    if (!fitsInQR) {
+    if (!fitsInQR || !shareUrl) {
       qrError = "Layout too large for QR code";
       return;
     }
@@ -64,7 +64,7 @@
     qrError = null;
 
     try {
-      qrDataUrl = await generateQRCode(shareUrl, { width: 444 });
+      qrDataUrl = await generateQRCode(shareUrl!, { width: 444 });
     } catch (error) {
       qrError = "Failed to generate QR code";
       console.error("QR generation failed:", error);
@@ -74,6 +74,7 @@
   }
 
   async function copyToClipboard() {
+    if (!shareUrl) return;
     try {
       await navigator.clipboard.writeText(shareUrl);
       toastStore.showToast("Link copied to clipboard", "success", 3000);
@@ -108,7 +109,7 @@
           id="share-url"
           type="text"
           readonly
-          value={shareUrl}
+          value={shareUrl ?? "Unable to encode layout"}
           class="url-input"
           onclick={(e) => e.currentTarget.select()}
           data-testid="share-url-input"

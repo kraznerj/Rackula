@@ -106,7 +106,10 @@
     if (!event.dataTransfer) return;
 
     const dragData = createPaletteDragData(device);
-    event.dataTransfer.setData("application/json", serializeDragData(dragData));
+    const serialized = serializeDragData(dragData);
+    event.dataTransfer.setData("application/json", serialized);
+    // Safari requires text/plain fallback for reliable drag initiation
+    event.dataTransfer.setData("text/plain", serialized);
     event.dataTransfer.effectAllowed = "copy";
 
     // Hide native drag ghost - only our DragTooltip will show
@@ -216,6 +219,10 @@
     min-height: var(--touch-target-min);
     border-radius: var(--radius-sm);
     cursor: grab;
+    /* Safari drag support: prevent text selection during drag */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: element;
     transition:
       transform var(--duration-fast) var(--ease-out),
       box-shadow var(--duration-fast) var(--ease-out),

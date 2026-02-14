@@ -1302,7 +1302,7 @@
 
     <!-- Devices -->
     <g transform="translate(0, {RACK_PADDING + RAIL_WIDTH})">
-      {#each visibleDevices as { placedDevice, originalIndex } (placedDevice.device_type + "-" + placedDevice.position)}
+      {#each visibleDevices as { placedDevice, originalIndex } (placedDevice.id)}
         {@const device = getDeviceBySlug(placedDevice.device_type)}
         {@const containerCtx = placedDevice.container_id
           ? getContainerContext(placedDevice)

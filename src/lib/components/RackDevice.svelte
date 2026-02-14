@@ -509,7 +509,15 @@
   function handleContextMenu(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    openDeviceContextMenu(event.clientX, event.clientY);
+    // Fall back to element centre if clientX/Y are invalid (e.g., synthetic events)
+    let x = event.clientX;
+    let y = event.clientY;
+    if (x === 0 && y === 0 && groupElement) {
+      const rect = groupElement.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top + rect.height / 2;
+    }
+    openDeviceContextMenu(x, y);
   }
 
   // Set up long-press gesture on mobile (reactive to viewport changes)

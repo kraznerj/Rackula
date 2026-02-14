@@ -136,36 +136,38 @@
 
       <DropdownMenu.Separator class="menu-separator" />
 
-      <DropdownMenu.GroupHeading class="menu-label-header"
-        >Device Library</DropdownMenu.GroupHeading
-      >
+      <DropdownMenu.Group>
+        <DropdownMenu.GroupHeading class="menu-label-header"
+          >Device Library</DropdownMenu.GroupHeading
+        >
 
-      <DropdownMenu.CheckboxItem
-        class="menu-item"
-        checked={promptCleanupOnSave}
-        onCheckedChange={handleSelect(ontogglepromptcleanup)}
-      >
-        {#snippet children({ checked })}
-          <span class="menu-checkbox">
-            {#if checked}
-              <IconSquareFilled size={ICON_SIZE.sm} />
-            {:else}
-              <IconSquare size={ICON_SIZE.sm} />
-            {/if}
+        <DropdownMenu.CheckboxItem
+          class="menu-item"
+          checked={promptCleanupOnSave}
+          onCheckedChange={handleSelect(ontogglepromptcleanup)}
+        >
+          {#snippet children({ checked })}
+            <span class="menu-checkbox">
+              {#if checked}
+                <IconSquareFilled size={ICON_SIZE.sm} />
+              {:else}
+                <IconSquare size={ICON_SIZE.sm} />
+              {/if}
+            </span>
+            <span class="menu-label">Prompt to Clean Up Unused Types</span>
+          {/snippet}
+        </DropdownMenu.CheckboxItem>
+
+        <DropdownMenu.Item
+          class="menu-item"
+          onSelect={handleSelect(onopencleanup)}
+        >
+          <span class="menu-icon">
+            <IconTrash size={ICON_SIZE.sm} />
           </span>
-          <span class="menu-label">Prompt to Clean Up Unused Types</span>
-        {/snippet}
-      </DropdownMenu.CheckboxItem>
-
-      <DropdownMenu.Item
-        class="menu-item"
-        onSelect={handleSelect(onopencleanup)}
-      >
-        <span class="menu-icon">
-          <IconTrash size={ICON_SIZE.sm} />
-        </span>
-        <span class="menu-label">Clean Up Unused Device Types...</span>
-      </DropdownMenu.Item>
+          <span class="menu-label">Clean Up Unused Device Types...</span>
+        </DropdownMenu.Item>
+      </DropdownMenu.Group>
     </DropdownMenu.Content>
   </DropdownMenu.Portal>
 </DropdownMenu.Root>

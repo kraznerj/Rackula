@@ -7,6 +7,7 @@
   import {
     IconUpload,
     IconDownload,
+    IconFileDownload,
     IconDownloadBold,
     IconShareBold,
   } from "./icons";
@@ -56,7 +57,7 @@
     onclick={() => handleAction(onsaveas)}
     aria-label="Save As ZIP"
   >
-    <span class="action-icon"><IconDownload size={ICON_SIZE.md} /></span>
+    <span class="action-icon"><IconFileDownload size={ICON_SIZE.md} /></span>
     <span class="action-label">Save As ZIP</span>
   </button>
 

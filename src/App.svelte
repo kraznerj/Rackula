@@ -440,7 +440,11 @@
   async function handleSaveFirst() {
     dialogStore.close();
     dialogStore.pendingSaveFirst = true;
-    await handleSaveAsArchive();
+    if (isApiAvailable()) {
+      await handleSaveToServer();
+    } else {
+      await handleSaveAsArchive();
+    }
   }
 
   function handleReplace() {
@@ -460,7 +464,7 @@
 
   /**
    * Check if we should show the cleanup prompt before save/export
-   * @param operation - "save" or "export"
+   * @param operation - "save", "saveAs", or "export"
    * @returns true if we should proceed with the operation, false if we showed the prompt
    */
   function shouldShowCleanupPrompt(
@@ -579,6 +583,34 @@
   }
 
   /**
+   * Classify a persistence error and update saveStatus / API availability.
+   * @param e - The caught error (unknown type from catch block)
+   * @param notify - Show toast messages (true for manual saves, false for auto-save)
+   */
+  function handlePersistenceError(e: unknown, notify = false) {
+    if (e instanceof PersistenceError) {
+      if (
+        e.statusCode === undefined ||
+        e.statusCode === 404 ||
+        (typeof e.statusCode === "number" && e.statusCode >= 500)
+      ) {
+        setApiAvailable(false);
+        saveStatus = "offline";
+        if (notify)
+          toastStore.showToast("Save failed — backend unavailable", "error");
+      } else {
+        saveStatus = "error";
+        if (notify) toastStore.showToast("Save failed", "error");
+      }
+    } else {
+      setApiAvailable(false);
+      saveStatus = "offline";
+      if (notify)
+        toastStore.showToast("Save failed — backend unavailable", "error");
+    }
+  }
+
+  /**
    * Save to backend API (immediate, no debounce).
    * Cancels pending auto-save to avoid duplicate writes.
    */
@@ -598,6 +630,9 @@
       clearSession();
       // No toast — SaveStatus indicator provides feedback
 
+      // Track save event (total devices across all racks)
+      analytics.trackSave(layoutStore.totalDeviceCount);
+
       // After save, if pendingSaveFirst, reset and open new rack form
       if (dialogStore.pendingSaveFirst) {
         dialogStore.pendingSaveFirst = false;
@@ -608,24 +643,7 @@
       }
     } catch (e) {
       console.warn("Manual save failed:", e);
-      if (e instanceof PersistenceError) {
-        if (
-          e.statusCode === undefined ||
-          e.statusCode === 404 ||
-          (typeof e.statusCode === "number" && e.statusCode >= 500)
-        ) {
-          setApiAvailable(false);
-          saveStatus = "offline";
-          toastStore.showToast("Save failed — backend unavailable", "error");
-        } else {
-          saveStatus = "error";
-          toastStore.showToast("Save failed", "error");
-        }
-      } else {
-        setApiAvailable(false);
-        saveStatus = "offline";
-        toastStore.showToast("Save failed — backend unavailable", "error");
-      }
+      handlePersistenceError(e, true);
       // NO auto-fallback to ZIP — per issue spec
     }
   }
@@ -1455,21 +1473,7 @@
       } catch (e) {
         console.warn("Auto-save failed:", e);
         // Degrade to offline mode for network/proxy/routing failures.
-        if (e instanceof PersistenceError) {
-          if (
-            e.statusCode === undefined ||
-            e.statusCode === 404 ||
-            (typeof e.statusCode === "number" && e.statusCode >= 500)
-          ) {
-            setApiAvailable(false);
-            saveStatus = "offline";
-          } else {
-            saveStatus = "error";
-          }
-        } else {
-          setApiAvailable(false);
-          saveStatus = "offline";
-        }
+        handlePersistenceError(e);
       }
       serverSaveTimer = null;
     }, 2000);

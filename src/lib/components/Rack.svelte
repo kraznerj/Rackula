@@ -87,6 +87,7 @@
         rackId: string;
         deviceIndex: number;
         newPosition: number;
+        slot_position?: SlotPosition;
       }>,
     ) => void;
     ondevicemoverack?: (
@@ -95,6 +96,7 @@
         sourceIndex: number;
         targetRackId: string;
         targetPosition: number;
+        slot_position?: SlotPosition;
       }>,
     ) => void;
     /** Mobile tap-to-place event (fires when rack is tapped during placement mode) */
@@ -438,6 +440,8 @@
       );
 
       if (feedback === "valid") {
+        // Preserve existing slot_position for pointer-based moves
+        const existingSlot = rack.devices[deviceIndex]?.slot_position;
         if (isInternalMove && deviceIndex !== undefined) {
           // Internal move within same rack
           ondevicemove?.(
@@ -446,6 +450,7 @@
                 rackId: rack.id,
                 deviceIndex: deviceIndex,
                 newPosition: targetU,
+                slot_position: existingSlot,
               },
             }),
           );
@@ -458,6 +463,7 @@
                 sourceIndex: deviceIndex,
                 targetRackId: rack.id,
                 targetPosition: targetU,
+                slot_position: existingSlot,
               },
             }),
           );
@@ -941,6 +947,7 @@
               rackId: rack.id,
               deviceIndex: dragData.sourceIndex,
               newPosition: targetU,
+              slot_position: slotPosition,
             },
           }),
         );
@@ -957,6 +964,7 @@
               sourceIndex: dragData.sourceIndex,
               targetRackId: rack.id,
               targetPosition: targetU,
+              slot_position: slotPosition,
             },
           }),
         );

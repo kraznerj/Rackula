@@ -449,13 +449,9 @@
 
   function handleReplace() {
     dialogStore.close();
-    layoutStore.resetLayout();
-    // Clean up orphaned user images (layout is now empty)
-    const usedSlugs = layoutStore.getUsedDeviceTypeSlugs();
-    imageStore.cleanupOrphanedImages(usedSlugs);
     // Clear autosaved session when explicitly creating new rack
     clearSession();
-    dialogStore.open("newRack");
+    resetAndOpenNewRack();
   }
 
   function handleCancelReplace() {
@@ -583,6 +579,17 @@
   }
 
   /**
+   * Reset the layout, clean up orphaned images, and open the new rack dialog.
+   * Shared by handleReplace, handleSaveToServer, and handleSaveAsArchive.
+   */
+  function resetAndOpenNewRack() {
+    layoutStore.resetLayout();
+    const usedSlugs = layoutStore.getUsedDeviceTypeSlugs();
+    imageStore.cleanupOrphanedImages(usedSlugs);
+    dialogStore.open("newRack");
+  }
+
+  /**
    * Classify a persistence error and update saveStatus / API availability.
    * @param e - The caught error (unknown type from catch block)
    * @param notify - Show toast messages (true for manual saves, false for auto-save)
@@ -636,12 +643,10 @@
       // After save, if pendingSaveFirst, reset and open new rack form
       if (dialogStore.pendingSaveFirst) {
         dialogStore.pendingSaveFirst = false;
-        layoutStore.resetLayout();
-        const usedSlugs = layoutStore.getUsedDeviceTypeSlugs();
-        imageStore.cleanupOrphanedImages(usedSlugs);
-        dialogStore.open("newRack");
+        resetAndOpenNewRack();
       }
     } catch (e) {
+      dialogStore.pendingSaveFirst = false;
       console.warn("Manual save failed:", e);
       handlePersistenceError(e, true);
       // NO auto-fallback to ZIP — per issue spec
@@ -673,13 +678,10 @@
       // After save, if pendingSaveFirst, reset and open new rack form
       if (dialogStore.pendingSaveFirst) {
         dialogStore.pendingSaveFirst = false;
-        layoutStore.resetLayout();
-        // Clean up orphaned user images (layout is now empty)
-        const usedSlugs = layoutStore.getUsedDeviceTypeSlugs();
-        imageStore.cleanupOrphanedImages(usedSlugs);
-        dialogStore.open("newRack");
+        resetAndOpenNewRack();
       }
     } catch (error) {
+      dialogStore.pendingSaveFirst = false;
       console.error("Failed to save layout:", error);
       toastStore.showToast(
         error instanceof Error ? error.message : "Failed to save layout",

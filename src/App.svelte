@@ -597,6 +597,15 @@
       layoutStore.markClean();
       clearSession();
       // No toast — SaveStatus indicator provides feedback
+
+      // After save, if pendingSaveFirst, reset and open new rack form
+      if (dialogStore.pendingSaveFirst) {
+        dialogStore.pendingSaveFirst = false;
+        layoutStore.resetLayout();
+        const usedSlugs = layoutStore.getUsedDeviceTypeSlugs();
+        imageStore.cleanupOrphanedImages(usedSlugs);
+        dialogStore.open("newRack");
+      }
     } catch (e) {
       console.warn("Manual save failed:", e);
       if (e instanceof PersistenceError) {

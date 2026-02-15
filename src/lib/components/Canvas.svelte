@@ -62,6 +62,7 @@
         rackId: string;
         deviceIndex: number;
         newPosition: number;
+        slot_position?: SlotPosition;
       }>,
     ) => void;
     ondevicemoverack?: (
@@ -70,6 +71,7 @@
         sourceIndex: number;
         targetRackId: string;
         targetPosition: number;
+        slot_position?: SlotPosition;
       }>,
     ) => void;
     /** Mobile long press for rack editing */
@@ -452,10 +454,11 @@
       rackId: string;
       deviceIndex: number;
       newPosition: number;
+      slot_position?: SlotPosition;
     }>,
   ) {
-    const { rackId, deviceIndex, newPosition } = event.detail;
-    layoutStore.moveDevice(rackId, deviceIndex, newPosition);
+    const { rackId, deviceIndex, newPosition, slot_position } = event.detail;
+    layoutStore.moveDevice(rackId, deviceIndex, newPosition, slot_position);
     ondevicemove?.(event);
   }
 
@@ -465,15 +468,22 @@
       sourceIndex: number;
       targetRackId: string;
       targetPosition: number;
+      slot_position?: SlotPosition;
     }>,
   ) {
-    const { sourceRackId, sourceIndex, targetRackId, targetPosition } =
-      event.detail;
+    const {
+      sourceRackId,
+      sourceIndex,
+      targetRackId,
+      targetPosition,
+      slot_position,
+    } = event.detail;
     layoutStore.moveDeviceToRack(
       sourceRackId,
       sourceIndex,
       targetRackId,
       targetPosition,
+      slot_position,
     );
     ondevicemoverack?.(event);
   }

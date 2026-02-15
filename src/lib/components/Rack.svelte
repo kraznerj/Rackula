@@ -87,6 +87,7 @@
         rackId: string;
         deviceIndex: number;
         newPosition: number;
+        slot_position?: SlotPosition;
       }>,
     ) => void;
     ondevicemoverack?: (
@@ -95,6 +96,7 @@
         sourceIndex: number;
         targetRackId: string;
         targetPosition: number;
+        slot_position?: SlotPosition;
       }>,
     ) => void;
     /** Mobile tap-to-place event (fires when rack is tapped during placement mode) */
@@ -438,6 +440,10 @@
       );
 
       if (feedback === "valid") {
+        // Preserve existing slot_position for pointer-based moves
+        // Always read from the source rack so cross-rack moves keep the correct slot
+        const sourceRack = layoutStore.getRackById(sourceRackId);
+        const existingSlot = sourceRack?.devices[deviceIndex]?.slot_position;
         if (isInternalMove && deviceIndex !== undefined) {
           // Internal move within same rack
           ondevicemove?.(
@@ -446,6 +452,7 @@
                 rackId: rack.id,
                 deviceIndex: deviceIndex,
                 newPosition: targetU,
+                slot_position: existingSlot,
               },
             }),
           );
@@ -458,6 +465,7 @@
                 sourceIndex: deviceIndex,
                 targetRackId: rack.id,
                 targetPosition: targetU,
+                slot_position: existingSlot,
               },
             }),
           );
@@ -587,8 +595,10 @@
     if (!event.dataTransfer) return;
 
     // Try dataTransfer first (works in drop), fall back to shared state (needed for dragover)
+    // Safari compatibility: try application/json first, fall back to text/plain
     let dragData = parseDragData(
-      event.dataTransfer.getData("application/json"),
+      event.dataTransfer.getData("application/json") ||
+        event.dataTransfer.getData("text/plain"),
     );
     if (!dragData) {
       // getData() blocked during dragover in most browsers - use shared state
@@ -843,7 +853,10 @@
 
     if (!event.dataTransfer) return;
 
-    const data = event.dataTransfer.getData("application/json");
+    // Safari compatibility: try application/json first, fall back to text/plain
+    const data =
+      event.dataTransfer.getData("application/json") ||
+      event.dataTransfer.getData("text/plain");
     const dragData = parseDragData(data);
     if (!dragData) return;
 
@@ -941,6 +954,7 @@
               rackId: rack.id,
               deviceIndex: dragData.sourceIndex,
               newPosition: targetU,
+              slot_position: slotPosition,
             },
           }),
         );
@@ -957,6 +971,7 @@
               sourceIndex: dragData.sourceIndex,
               targetRackId: rack.id,
               targetPosition: targetU,
+              slot_position: slotPosition,
             },
           }),
         );

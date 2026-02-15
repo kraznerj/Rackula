@@ -509,13 +509,16 @@
   function handleContextMenu(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    // Fall back to element centre if clientX/Y are invalid (e.g., synthetic events)
+    // Use element bounds as fallback when clientX/Y are outside the device
+    // (panzoom transforms can distort coordinates for half-width devices)
     let x = event.clientX;
     let y = event.clientY;
-    if (x === 0 && y === 0 && groupElement) {
+    if (groupElement) {
       const rect = groupElement.getBoundingClientRect();
-      x = rect.left + rect.width / 2;
-      y = rect.top + rect.height / 2;
+      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+        x = rect.left + rect.width / 2;
+        y = rect.top + rect.height / 2;
+      }
     }
     openDeviceContextMenu(x, y);
   }

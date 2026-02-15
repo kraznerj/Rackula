@@ -1661,9 +1661,10 @@ function moveDevice(
   rackId: string,
   deviceIndex: number,
   newPosition: number,
+  slotPosition?: SlotPosition,
 ): boolean {
   // Delegate to recorded version for undo/redo support
-  return moveDeviceRecorded(rackId, deviceIndex, newPosition);
+  return moveDeviceRecorded(rackId, deviceIndex, newPosition, slotPosition);
 }
 
 /**
@@ -1675,13 +1676,14 @@ function moveDeviceToRack(
   deviceIndex: number,
   toRackId: string,
   newPosition: number,
+  slotPosition?: SlotPosition,
 ): boolean {
   // Cross-rack moves not yet implemented
   if (fromRackId !== toRackId) {
     debug.log("Cross-rack move not yet implemented");
     return false;
   }
-  return moveDevice(fromRackId, deviceIndex, newPosition);
+  return moveDevice(fromRackId, deviceIndex, newPosition, slotPosition);
 }
 
 /**
@@ -2793,6 +2795,7 @@ function moveDeviceRecorded(
   rackId: string,
   deviceIndex: number,
   newPositionU: number,
+  newSlotPosition?: SlotPosition,
 ): boolean {
   // Convert to internal units
   const newPositionInternal = toInternalUnits(newPositionU);
@@ -2847,6 +2850,8 @@ function moveDeviceRecorded(
   const oldPositionU = toHumanUnits(oldPositionInternal);
 
   // Use canPlaceDevice for bounds and collision checking (face and depth aware)
+  // Use new slot_position if provided (e.g., from D&D target), otherwise keep existing
+  const effectiveSlot = newSlotPosition ?? device.slot_position ?? "full";
   if (
     !canPlaceDevice(
       targetRack,
@@ -2855,7 +2860,7 @@ function moveDeviceRecorded(
       newPositionInternal,
       deviceIndex,
       device.face,
-      device.slot_position ?? "full",
+      effectiveSlot,
     )
   ) {
     // Determine if it's out of bounds or collision
@@ -2886,6 +2891,14 @@ function moveDeviceRecorded(
   );
   history.execute(command);
   isDirty = true;
+
+  // Update slot_position if changed (not tracked by move command undo/redo)
+  if (newSlotPosition && newSlotPosition !== device.slot_position) {
+    const freshRack = getRackById(rackId);
+    if (freshRack && freshRack.devices[deviceIndex]) {
+      freshRack.devices[deviceIndex]!.slot_position = newSlotPosition;
+    }
+  }
 
   debug.deviceMove({
     index: deviceIndex,

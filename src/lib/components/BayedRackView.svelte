@@ -13,6 +13,7 @@
     DeviceType,
     DisplayMode,
     AnnotationField,
+    SlotPosition,
   } from "$lib/types";
   import Rack from "./Rack.svelte";
   import RackContextMenu from "./RackContextMenu.svelte";
@@ -222,7 +223,8 @@
         }
 
         hapticTap();
-        const fallbackTarget = triggerElement ?? containerElement ?? document.body;
+        const fallbackTarget =
+          triggerElement ?? containerElement ?? document.body;
         bayedLongPressDebug(
           "dispatch rack context menu rackId=%s point=%o hasTarget=%s",
           rackId,
@@ -262,7 +264,12 @@
   // Handle device drop on front view - add face: 'front' to the event
   function handleFrontDeviceDrop(
     rackId: string,
-    event: CustomEvent<{ rackId: string; slug: string; position: number }>,
+    event: CustomEvent<{
+      rackId: string;
+      slug: string;
+      position: number;
+      slot_position?: SlotPosition;
+    }>,
   ) {
     ondevicedrop?.(
       new CustomEvent("devicedrop", {
@@ -271,6 +278,7 @@
           slug: event.detail.slug,
           position: event.detail.position,
           face: "front" as const,
+          slot_position: event.detail.slot_position,
         },
       }),
     );
@@ -279,7 +287,12 @@
   // Handle device drop on rear view - add face: 'rear' to the event
   function handleRearDeviceDrop(
     rackId: string,
-    event: CustomEvent<{ rackId: string; slug: string; position: number }>,
+    event: CustomEvent<{
+      rackId: string;
+      slug: string;
+      position: number;
+      slot_position?: SlotPosition;
+    }>,
   ) {
     ondevicedrop?.(
       new CustomEvent("devicedrop", {
@@ -288,6 +301,7 @@
           slug: event.detail.slug,
           position: event.detail.position,
           face: "rear" as const,
+          slot_position: event.detail.slot_position,
         },
       }),
     );

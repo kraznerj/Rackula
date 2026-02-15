@@ -1449,8 +1449,9 @@ function duplicateDevice(
   }
 
   // Create the duplicate device with new ID but inherited properties
+  // Use $state.snapshot() to deep-clone the reactive proxy and avoid linked state
   const duplicatedDevice: PlacedDevice = {
-    ...sourceDevice,
+    ...$state.snapshot(sourceDevice),
     id: generateId(),
     position: targetPosition,
     // Regenerate ports with new IDs

@@ -595,8 +595,10 @@
     if (!event.dataTransfer) return;
 
     // Try dataTransfer first (works in drop), fall back to shared state (needed for dragover)
+    // Safari compatibility: try application/json first, fall back to text/plain
     let dragData = parseDragData(
-      event.dataTransfer.getData("application/json"),
+      event.dataTransfer.getData("application/json") ||
+        event.dataTransfer.getData("text/plain"),
     );
     if (!dragData) {
       // getData() blocked during dragover in most browsers - use shared state
@@ -851,7 +853,10 @@
 
     if (!event.dataTransfer) return;
 
-    const data = event.dataTransfer.getData("application/json");
+    // Safari compatibility: try application/json first, fall back to text/plain
+    const data =
+      event.dataTransfer.getData("application/json") ||
+      event.dataTransfer.getData("text/plain");
     const dragData = parseDragData(data);
     if (!dragData) return;
 

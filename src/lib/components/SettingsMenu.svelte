@@ -136,9 +136,8 @@
 
       <DropdownMenu.Separator class="menu-separator" />
 
-      <DropdownMenu.Group>
-        <DropdownMenu.GroupHeading class="menu-label-header"
-          >Device Library</DropdownMenu.GroupHeading
+      <DropdownMenu.Group aria-label="Device Library">
+        <span class="menu-label-header" role="presentation">Device Library</span
         >
 
         <DropdownMenu.CheckboxItem

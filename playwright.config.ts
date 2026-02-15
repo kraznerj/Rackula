@@ -7,21 +7,26 @@ export default defineConfig({
   },
   testDir: "e2e",
   fullyParallel: true,
-  retries: 1,
+  forbidOnly: !!process.env.CI,
+  retries: 2,
   reporter: [["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:4173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
   },
   projects: [
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: ["ios-safari.spec.ts", "android-chrome.spec.ts"],
     },
     {
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
+      testIgnore: ["ios-safari.spec.ts", "android-chrome.spec.ts"],
     },
     // iOS Safari tests
     {

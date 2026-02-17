@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-02-17
+
+### Added
+
+- Separate Save from Save As: dedicated Save action for backend persistence, Save As for ZIP export (#1219, PR #1247)
+- ProxmoxVE LXC distribution infrastructure (PR #1218)
+
+### Fixed
+
+- Half-width device slot_position not threaded through pointer-based move events (#1244, PR #1246)
+- Half-width device slot_position not threaded through keyboard/context-menu move events (PR #1242)
+- Safari drag-and-drop broken due to missing text/plain fallback (#1200, PR #1243)
+- Settings menu gear icon broken by incorrect GroupHeading usage (#1203, PR #1241)
+- Share link encoding failure on large layouts (#953, #1195, PR #1242)
+- Duplicating half-width device linked state with original (#1195, PR #1242)
+- Half-width device context menu opening at wrong position (#1193, PR #1242)
+- Half-width second-device placement inconsistency in same RU (#1191, PR #1242)
+
+### Technical
+
+- Harden Playwright config for CI stability (#1223, PR #1232)
+- Pin GitHub Actions to commit SHAs in build-lxc.yml (PR #1256)
+- Consolidate E2E test helpers and migrate specs to gotoWithRack (#1225, PR #1249)
+- Bump Svelte from 5.50.1 to 5.51.2 (PR #1204, #1252)
+- Bump ESLint group, @vitest/eslint-plugin, typescript-eslint (PR #1250, #1251, #1257)
+- Bump actions group with 4 updates (PR #1253)
+- Bump simple-icons, qs, and production dependencies (PR #1206, #1217, #1220, #1221)
+
 ## [0.8.0] - 2026-02-11
 
 ### Added

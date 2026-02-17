@@ -6,8 +6,8 @@ Rackula is currently in active development. Security updates are applied to the 
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.8.0   | :white_check_mark: |
-| < 0.8.0 | :x:                |
+| 0.8.1   | :white_check_mark: |
+| < 0.8.1 | :x:                |
 
 ## Reporting a Vulnerability
 

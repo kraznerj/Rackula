@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2026-02-20
+
+### Fixed
+
+- Prevented container startup crash in persist deployments caused by unresolved `AUTH_MODE` values rendering invalid nginx config (`unknown "auth_mode" variable`) (#1297)
+- Normalized auth mode at container entrypoint and restricted nginx auth-mode mapping to sanitized `RACKULA_AUTH_MODE` values (`none|oidc|local`) with safe fallback to `none`
+
+### Security
+
+- Remediated open Dependabot alerts by upgrading vulnerable dependencies: `jspdf` to `4.2.0`, `svelte` to `5.53.0` (with patched `devalue` `5.6.3`), and `hono` to `4.12.0`
+
 ## [0.8.3] - 2026-02-20
 
 ### Fixed

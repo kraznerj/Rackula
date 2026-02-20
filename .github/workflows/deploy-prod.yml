@@ -199,6 +199,9 @@ jobs:
           image-ref: ${{ env.IMAGE_REF }}
           format: sarif
           output: trivy-results.sarif
+          # Keep the release gate aligned with configured severity thresholds.
+          # Without this, SARIF mode can include lower severities and trip exit-code.
+          limit-severities-for-sarif: true
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: 1

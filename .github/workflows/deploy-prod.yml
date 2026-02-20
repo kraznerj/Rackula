@@ -269,7 +269,7 @@ jobs:
           curl -sf --retry 5 --retry-delay 3 https://count.racku.la
 
   notify-failure:
-    if: ${{ failure() || cancelled() }}
+    if: ${{ always() && (failure() || cancelled()) }}
     needs: [build-and-deploy, build-persist, build-api, scan-images, deploy, smoke-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -302,9 +302,11 @@ jobs:
               ? failedJobs.map((job) => `- ${job.name}: ${job.conclusion} (${job.html_url})`)
               : ["- No failed jobs found; inspect workflow graph for skipped dependencies."];
 
+            const normalizedRef = context.ref.replace(/^refs\/(tags|heads)\//, "");
+
             core.setOutput("run_url", runUrl);
             core.setOutput("failed_jobs", failedLines.join("\n"));
-            core.setOutput("tag_name", context.ref.replace("refs/tags/", ""));
+            core.setOutput("tag_name", normalizedRef || context.ref);
 
             await core.summary
               .addHeading("Deploy Prod Failure Alert")
@@ -312,6 +314,38 @@ jobs:
               .addRaw("Failed jobs:\n")
               .addRaw(failedLines.join("\n"))
               .write();
+
+      - name: Ensure alert labels exist
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labels = [
+              {
+                name: "ci-alert",
+                color: "B60205",
+                description: "Automated CI/CD failure alerts",
+              },
+              {
+                name: "automated",
+                color: "1D76DB",
+                description: "Created or updated by GitHub Actions automation",
+              },
+            ];
+
+            for (const label of labels) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  ...label,
+                });
+              } catch (error) {
+                if (error.status !== 422) {
+                  throw error;
+                }
+              }
+            }
 
       - name: Create or update alert issue
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
@@ -359,6 +393,7 @@ jobs:
                 repo,
                 title,
                 body,
+                labels: ["ci-alert", "automated"],
               });
               core.notice(`Created alert issue #${created.data.number}`);
             }

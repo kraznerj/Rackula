@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-02-20
+
+### Fixed
+
+- Production deploy workflow now keeps Trivy SARIF gating aligned with configured severity (`HIGH,CRITICAL`) via `limit-severities-for-sarif`, preventing medium/low advisories from blocking deploy
+
 ## [0.8.2] - 2026-02-20
 
 ### Technical

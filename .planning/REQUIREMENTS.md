@@ -88,35 +88,35 @@
 
 ## Traceability
 
-| Requirement | Phase | Status  |
-| ----------- | ----- | ------- |
-| AUTH-01     | TBD   | Pending |
-| AUTH-02     | TBD   | Pending |
-| SESS-01     | TBD   | Pending |
-| API-01      | TBD   | Pending |
-| API-02      | TBD   | Pending |
-| CI-01       | TBD   | Pending |
-| CI-02       | TBD   | Pending |
-| CI-03       | TBD   | Pending |
-| E2E-01      | TBD   | Pending |
-| E2E-02      | TBD   | Pending |
-| E2E-03      | TBD   | Pending |
-| E2E-04      | TBD   | Pending |
-| E2E-05      | TBD   | Pending |
-| E2E-06      | TBD   | Pending |
-| E2E-07      | TBD   | Pending |
-| BUG-01      | TBD   | Pending |
-| BUG-02      | TBD   | Pending |
-| BUG-03      | TBD   | Pending |
-| HK-01       | TBD   | Pending |
+| Requirement | Phase   | Status  |
+| ----------- | ------- | ------- |
+| AUTH-01     | Phase 2 | Pending |
+| AUTH-02     | Phase 2 | Pending |
+| SESS-01     | Phase 1 | Pending |
+| API-01      | Phase 3 | Pending |
+| API-02      | Phase 3 | Pending |
+| CI-01       | Phase 4 | Pending |
+| CI-02       | Phase 4 | Pending |
+| CI-03       | Phase 4 | Pending |
+| E2E-01      | Phase 5 | Pending |
+| E2E-02      | Phase 5 | Pending |
+| E2E-03      | Phase 5 | Pending |
+| E2E-04      | Phase 5 | Pending |
+| E2E-05      | Phase 5 | Pending |
+| E2E-06      | Phase 5 | Pending |
+| E2E-07      | Phase 5 | Pending |
+| BUG-01      | Phase 6 | Pending |
+| BUG-02      | Phase 6 | Pending |
+| BUG-03      | Phase 6 | Pending |
+| HK-01       | Phase 7 | Pending |
 
 **Coverage:**
 
 - v1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-02-19_
-_Last updated: 2026-02-19 after initial definition_
+_Last updated: 2026-02-21 after roadmap creation_

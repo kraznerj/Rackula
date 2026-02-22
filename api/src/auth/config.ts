@@ -8,11 +8,15 @@ import { betterAuth } from "better-auth";
  * container restarts (stored in browser cookies, not server memory).
  *
  * Environment variables:
- * - RACKULA_OIDC_ISSUER: OIDC provider base URL (e.g., https://authentik.example.com/application/o/rackula/)
- * - RACKULA_OIDC_CLIENT_ID: OAuth client ID
- * - RACKULA_OIDC_CLIENT_SECRET: OAuth client secret
- * - RACKULA_OIDC_REDIRECT_URI: OAuth callback URL (defaults to /auth/callback)
  * - RACKULA_AUTH_SESSION_SECRET: HMAC secret for signing session cookies (required, min 32 chars)
+ * - RACKULA_OIDC_ISSUER: OIDC provider base URL (for Phase 2)
+ * - RACKULA_OIDC_CLIENT_ID: OAuth client ID (for Phase 2)
+ * - RACKULA_OIDC_CLIENT_SECRET: OAuth client secret (for Phase 2)
+ * - RACKULA_OIDC_REDIRECT_URI: OAuth callback URL (for Phase 2, defaults to /auth/callback)
+ *
+ * Note: Generic OIDC provider configuration is documented here for Phase 2 implementation.
+ * The session infrastructure is complete; OIDC integration requires Better Auth plugin/adapter
+ * that will be added in the next phase.
  */
 export const auth = betterAuth({
   // Omitting database config enables stateless mode (cookie-only sessions)
@@ -42,18 +46,10 @@ export const auth = betterAuth({
     },
   },
 
-  socialProviders: {
-    // Generic OIDC provider configuration
-    // Supports any OIDC-compliant IdP (Authentik, Authelia, Keycloak, etc.)
-    ...(process.env.RACKULA_OIDC_ISSUER && {
-      oidc: {
-        issuer: process.env.RACKULA_OIDC_ISSUER,
-        clientId: process.env.RACKULA_OIDC_CLIENT_ID || "",
-        clientSecret: process.env.RACKULA_OIDC_CLIENT_SECRET || "",
-        redirectURI:
-          process.env.RACKULA_OIDC_REDIRECT_URI ||
-          `${process.env.PUBLIC_URL || "http://localhost:3000"}/auth/callback`,
-      },
-    }),
-  },
+  // TODO Phase 2: Configure generic OIDC provider
+  // Research needed: Better Auth's TypeScript interface for generic OIDC (not provider-specific)
+  // Environment variables are documented above and ready for integration
+  // socialProviders: {
+  //   genericOAuth: { ... } // or oidc: { ... } depending on Better Auth's actual API
+  // }
 });

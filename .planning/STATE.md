@@ -45,7 +45,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - Generic OIDC over provider-specific OAuth for flexibility with any IdP
-- Shared TTL-backed session store over in-memory for multi-instance deployment
+- Single-instance only — Redis eliminated, framework-first session handling via Better Auth
+- Phase 1 may merge into Phase 2 if Better Auth handles sessions natively
 - Defer YAML editor to v0.10.0 (auth/security is higher priority)
 - Defer mobile enhancements to v0.10.0 (stability before UX polish)
 
@@ -59,6 +60,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-21 — Roadmap initialization
-Stopped at: Roadmap and STATE.md created, ready for phase planning
-Resume file: None
+Last session: 2026-02-21 — Phase 1 context discussion
+Stopped at: Phase 1 context gathered
+Resume file: .planning/phases/01-session-store-migration/01-CONTEXT.md

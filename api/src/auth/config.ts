@@ -1,27 +1,30 @@
 import { betterAuth } from "better-auth";
+import { genericOAuth } from "better-auth/plugins";
 
 /**
- * Better Auth configuration with stateless (cookie-only) sessions.
+ * Better Auth configuration with stateless (cookie-only) sessions and generic OIDC.
  *
  * Session data is stored in signed/encrypted cookies with no database backend.
  * This eliminates server-side session storage while providing sessions that survive
  * container restarts (stored in browser cookies, not server memory).
  *
+ * OIDC authentication uses the genericOAuth plugin with auto-discovery via
+ * the provider's .well-known/openid-configuration endpoint. Works with any
+ * OIDC-compliant provider (Authentik, Authelia, Keycloak, etc.).
+ *
  * Environment variables:
  * - RACKULA_AUTH_SESSION_SECRET: HMAC secret for signing session cookies (required, min 32 chars)
- * - RACKULA_OIDC_ISSUER: OIDC provider base URL (for Phase 2)
- * - RACKULA_OIDC_CLIENT_ID: OAuth client ID (for Phase 2)
- * - RACKULA_OIDC_CLIENT_SECRET: OAuth client secret (for Phase 2)
- * - RACKULA_OIDC_REDIRECT_URI: OAuth callback URL (for Phase 2, defaults to /auth/callback)
- *
- * Note: Generic OIDC provider configuration is documented here for Phase 2 implementation.
- * The session infrastructure is complete; OIDC integration requires Better Auth plugin/adapter
- * that will be added in the next phase.
+ * - RACKULA_OIDC_ISSUER: OIDC provider base URL (e.g. https://auth.example.com/application/o/rackula/)
+ * - RACKULA_OIDC_CLIENT_ID: OAuth client ID
+ * - RACKULA_OIDC_CLIENT_SECRET: OAuth client secret
+ * - RACKULA_OIDC_REDIRECT_URI: OAuth callback URL (optional, defaults to {baseURL}/api/auth/oauth2/callback/oidc)
+ * - RACKULA_BASE_URL: Base URL for callback construction (defaults to http://localhost:3000)
  */
 export const auth = betterAuth({
   // Omitting database config enables stateless mode (cookie-only sessions)
   // Session data stored in signed cookies, no database queries for validation
   secret: process.env.RACKULA_AUTH_SESSION_SECRET || "",
+  baseURL: process.env.RACKULA_BASE_URL || "http://localhost:3000",
 
   session: {
     // 12 hours session lifetime (shorter than Better Auth default of 7 days)
@@ -46,10 +49,21 @@ export const auth = betterAuth({
     },
   },
 
-  // TODO Phase 2: Configure generic OIDC provider
-  // Research needed: Better Auth's TypeScript interface for generic OIDC (not provider-specific)
-  // Environment variables are documented above and ready for integration
-  // socialProviders: {
-  //   genericOAuth: { ... } // or oidc: { ... } depending on Better Auth's actual API
-  // }
+  plugins: [
+    genericOAuth({
+      config: [
+        {
+          providerId: "oidc",
+          clientId: process.env.RACKULA_OIDC_CLIENT_ID || "",
+          clientSecret: process.env.RACKULA_OIDC_CLIENT_SECRET || "",
+          discoveryUrl: process.env.RACKULA_OIDC_ISSUER
+            ? `${process.env.RACKULA_OIDC_ISSUER.replace(/\/$/, "")}/.well-known/openid-configuration`
+            : undefined,
+          scopes: ["openid", "profile", "email"],
+          pkce: true,
+          redirectURI: process.env.RACKULA_OIDC_REDIRECT_URI || undefined,
+        },
+      ],
+    }),
+  ],
 });

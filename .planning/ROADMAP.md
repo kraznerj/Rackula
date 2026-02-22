@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap delivers authentication, security hardening, and stability improvements for the self-hosted deployment. The journey starts with migrating the session store to support multi-instance deployments, then implements OIDC authentication, hardens API and CI/CD pipelines, stabilises the E2E test suite, fixes critical bugs, and prepares the v0.9.0 release. Each phase delivers a coherent capability that maintains the core value: visual rack design with zero friction.
+This roadmap delivers authentication, security hardening, and stability improvements for the self-hosted deployment. The journey starts with implementing OIDC authentication (with Better Auth handling session persistence natively), then hardens API and CI/CD pipelines, stabilises the E2E test suite, fixes critical bugs, and prepares the v0.9.0 release. Each phase delivers a coherent capability that maintains the core value: visual rack design with zero friction.
 
 ## Phases
 
@@ -13,51 +13,36 @@ This roadmap delivers authentication, security hardening, and stability improvem
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Session Store Migration** - Replace in-memory session storage with shared TTL-backed store
-- [ ] **Phase 2: Authentication** - Implement OIDC authentication and setup documentation
-- [ ] **Phase 3: API Hardening** - Establish security baseline and manifest integrity checks
-- [ ] **Phase 4: CI/CD Hardening** - Secure PR validation and deployment workflows
-- [ ] **Phase 5: E2E Test Stability** - Fix selector rot and eliminate test fragility
-- [ ] **Phase 6: Bug Fixes** - Resolve bayed rack sharing, offline persistence, and test issues
-- [ ] **Phase 7: Milestone Cleanup** - Complete v0.8.x hygiene and prepare v0.9.0 release
+- [ ] **Phase 1: Authentication** - Implement OIDC authentication with persistent sessions and setup documentation
+- [ ] **Phase 2: API Hardening** - Establish security baseline and manifest integrity checks
+- [ ] **Phase 3: CI/CD Hardening** - Secure PR validation and deployment workflows
+- [ ] **Phase 4: E2E Test Stability** - Fix selector rot and eliminate test fragility
+- [ ] **Phase 5: Bug Fixes** - Resolve bayed rack sharing, offline persistence, and test issues
+- [ ] **Phase 6: Milestone Cleanup** - Complete v0.8.x hygiene and prepare v0.9.0 release
 
 ## Phase Details
 
-### Phase 1: Session Store Migration
+### Phase 1: Authentication
 
-**Goal**: Session state persists across container restarts and supports multi-instance deployments
+**Goal**: Users can authenticate via generic OIDC provider with persistent sessions, and self-hosters have complete setup documentation
 **Depends on**: Nothing (first phase)
-**Requirements**: SESS-01
+**Requirements**: SESS-01, AUTH-01, AUTH-02
 **Success Criteria** (what must be TRUE):
 
 1. Sessions survive API container restarts without users losing authentication state
-2. Multiple API instances can share session state via Redis or SQLite backend
-3. Session TTL automatically expires stale sessions without manual cleanup
+2. Session TTL automatically expires stale sessions without manual cleanup
+3. User can authenticate using any generic OIDC provider (Authentik, Authelia, Keycloak)
+4. Authenticated user can access saved layouts and persist changes
+5. Unauthenticated user can still use the app in read-only mode (design freedom preserved)
+6. Self-hoster can follow documentation to configure OIDC with their IdP
+7. Self-hoster can harden auth settings using documented best practices
    **Plans**: TBD
 
 Plans:
 
 - [ ] 01-01: TBD
 
-### Phase 2: Authentication
-
-**Goal**: Users can authenticate via generic OIDC provider and self-hosters have complete setup documentation
-**Depends on**: Phase 1
-**Requirements**: AUTH-01, AUTH-02
-**Success Criteria** (what must be TRUE):
-
-1. User can authenticate using any generic OIDC provider (Authentik, Authelia, Keycloak)
-2. Authenticated user can access saved layouts and persist changes
-3. Unauthenticated user can still use the app in read-only mode (design freedom preserved)
-4. Self-hoster can follow documentation to configure OIDC with their IdP
-5. Self-hoster can harden auth settings using documented best practices
-   **Plans**: TBD
-
-Plans:
-
-- [ ] 02-01: TBD
-
-### Phase 3: API Hardening
+### Phase 2: API Hardening
 
 **Goal**: Self-hosted API meets security baseline and brand-pack assets have integrity protection
 **Depends on**: Nothing (independent of auth)
@@ -72,9 +57,9 @@ Plans:
 
 Plans:
 
-- [ ] 03-01: TBD
+- [ ] 02-01: TBD
 
-### Phase 4: CI/CD Hardening
+### Phase 3: CI/CD Hardening
 
 **Goal**: PR and deployment workflows have security gates that prevent untrusted or accidental changes
 **Depends on**: Nothing (independent of other phases)
@@ -89,9 +74,9 @@ Plans:
 
 Plans:
 
-- [ ] 04-01: TBD
+- [ ] 03-01: TBD
 
-### Phase 5: E2E Test Stability
+### Phase 4: E2E Test Stability
 
 **Goal**: E2E test suite reliably passes with no selector rot, false positives, or arbitrary timeouts
 **Depends on**: Nothing (independent of other phases)
@@ -109,9 +94,9 @@ Plans:
 
 Plans:
 
-- [ ] 05-01: TBD
+- [ ] 04-01: TBD
 
-### Phase 6: Bug Fixes
+### Phase 5: Bug Fixes
 
 **Goal**: Critical bugs in sharing, persistence, and tests are resolved
 **Depends on**: Nothing (independent of other phases)
@@ -125,12 +110,12 @@ Plans:
 
 Plans:
 
-- [ ] 06-01: TBD
+- [ ] 05-01: TBD
 
-### Phase 7: Milestone Cleanup
+### Phase 6: Milestone Cleanup
 
 **Goal**: v0.8.x milestone is hygienically closed and v0.9.0 is ready for release
-**Depends on**: Phases 1-6
+**Depends on**: Phases 1-5
 **Requirements**: HK-01
 **Success Criteria** (what must be TRUE):
 
@@ -142,19 +127,18 @@ Plans:
 
 Plans:
 
-- [ ] 07-01: TBD
+- [ ] 06-01: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases 1-2 are sequential. Phases 3-6 can execute in parallel after Phase 1. Phase 7 depends on all previous phases.
+Phase 1 first. Phases 2-5 can execute in parallel after Phase 1. Phase 6 depends on all previous phases.
 
-| Phase                      | Plans Complete | Status      | Completed |
-| -------------------------- | -------------- | ----------- | --------- |
-| 1. Session Store Migration | 0/0            | Not started | -         |
-| 2. Authentication          | 0/0            | Not started | -         |
-| 3. API Hardening           | 0/0            | Not started | -         |
-| 4. CI/CD Hardening         | 0/0            | Not started | -         |
-| 5. E2E Test Stability      | 0/0            | Not started | -         |
-| 6. Bug Fixes               | 0/0            | Not started | -         |
-| 7. Milestone Cleanup       | 0/0            | Not started | -         |
+| Phase                 | Plans Complete | Status      | Completed |
+| --------------------- | -------------- | ----------- | --------- |
+| 1. Authentication     | 0/0            | Not started | -         |
+| 2. API Hardening      | 0/0            | Not started | -         |
+| 3. CI/CD Hardening    | 0/0            | Not started | -         |
+| 4. E2E Test Stability | 0/0            | Not started | -         |
+| 5. Bug Fixes          | 0/0            | Not started | -         |
+| 6. Milestone Cleanup  | 0/0            | Not started | -         |

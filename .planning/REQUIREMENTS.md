@@ -90,25 +90,25 @@
 
 | Requirement | Phase   | Status  |
 | ----------- | ------- | ------- |
-| AUTH-01     | Phase 2 | Pending |
-| AUTH-02     | Phase 2 | Pending |
 | SESS-01     | Phase 1 | Pending |
-| API-01      | Phase 3 | Pending |
-| API-02      | Phase 3 | Pending |
-| CI-01       | Phase 4 | Pending |
-| CI-02       | Phase 4 | Pending |
-| CI-03       | Phase 4 | Pending |
-| E2E-01      | Phase 5 | Pending |
-| E2E-02      | Phase 5 | Pending |
-| E2E-03      | Phase 5 | Pending |
-| E2E-04      | Phase 5 | Pending |
-| E2E-05      | Phase 5 | Pending |
-| E2E-06      | Phase 5 | Pending |
-| E2E-07      | Phase 5 | Pending |
-| BUG-01      | Phase 6 | Pending |
-| BUG-02      | Phase 6 | Pending |
-| BUG-03      | Phase 6 | Pending |
-| HK-01       | Phase 7 | Pending |
+| AUTH-01     | Phase 1 | Pending |
+| AUTH-02     | Phase 1 | Pending |
+| API-01      | Phase 2 | Pending |
+| API-02      | Phase 2 | Pending |
+| CI-01       | Phase 3 | Pending |
+| CI-02       | Phase 3 | Pending |
+| CI-03       | Phase 3 | Pending |
+| E2E-01      | Phase 4 | Pending |
+| E2E-02      | Phase 4 | Pending |
+| E2E-03      | Phase 4 | Pending |
+| E2E-04      | Phase 4 | Pending |
+| E2E-05      | Phase 4 | Pending |
+| E2E-06      | Phase 4 | Pending |
+| E2E-07      | Phase 4 | Pending |
+| BUG-01      | Phase 5 | Pending |
+| BUG-02      | Phase 5 | Pending |
+| BUG-03      | Phase 5 | Pending |
+| HK-01       | Phase 6 | Pending |
 
 **Coverage:**
 
@@ -119,4 +119,4 @@
 ---
 
 _Requirements defined: 2026-02-19_
-_Last updated: 2026-02-21 after roadmap creation_
+_Last updated: 2026-02-21 after Phase 1 merged into Phase 2 (renumbered to 6 phases)_

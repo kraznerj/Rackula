@@ -8,7 +8,7 @@
 ### Authentication
 
 - [ ] **AUTH-01**: User can authenticate via generic OIDC provider (Authentik, Authelia, Keycloak, etc.) — #1102
-- [ ] **AUTH-02**: Self-hosters have documentation for authentication setup and hardening — #1107
+- [x] **AUTH-02**: Self-hosters have documentation for authentication setup and hardening — #1107
 
 ### Session Management
 
@@ -91,8 +91,8 @@
 | Requirement | Phase   | Status   |
 | ----------- | ------- | -------- |
 | SESS-01     | Phase 1 | Complete |
-| AUTH-01     | Phase 1 | Pending  |
-| AUTH-02     | Phase 1 | Pending  |
+| AUTH-01     | Phase 1 | Partial  |
+| AUTH-02     | Phase 1 | Complete |
 | API-01      | Phase 2 | Pending  |
 | API-02      | Phase 2 | Pending  |
 | CI-01       | Phase 3 | Pending  |

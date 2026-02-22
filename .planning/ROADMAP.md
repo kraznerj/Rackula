@@ -13,7 +13,7 @@ This roadmap delivers authentication, security hardening, and stability improvem
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Authentication** - Implement OIDC authentication with persistent sessions and setup documentation
+- [x] **Phase 1: Authentication** - Implement OIDC authentication with persistent sessions and setup documentation
 - [ ] **Phase 2: API Hardening** - Establish security baseline and manifest integrity checks
 - [ ] **Phase 3: CI/CD Hardening** - Secure PR validation and deployment workflows
 - [ ] **Phase 4: E2E Test Stability** - Fix selector rot and eliminate test fragility
@@ -40,8 +40,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 
-- [ ] 01-01-PLAN.md — Install Better Auth with stateless sessions and generic OIDC
-- [ ] 01-02-PLAN.md — Create authentication setup and hardening documentation
+- [x] 01-01-PLAN.md — Install Better Auth with stateless sessions and generic OIDC
+- [x] 01-02-PLAN.md — Create authentication setup and hardening documentation
 
 ### Phase 2: API Hardening
 
@@ -135,11 +135,11 @@ Plans:
 **Execution Order:**
 Phase 1 first. Phases 2-5 can execute in parallel after Phase 1. Phase 6 depends on all previous phases.
 
-| Phase                 | Plans Complete | Status      | Completed |
-| --------------------- | -------------- | ----------- | --------- |
-| 1. Authentication     | 1/2            | In Progress |           |
-| 2. API Hardening      | 0/0            | Not started | -         |
-| 3. CI/CD Hardening    | 0/0            | Not started | -         |
-| 4. E2E Test Stability | 0/0            | Not started | -         |
-| 5. Bug Fixes          | 0/0            | Not started | -         |
-| 6. Milestone Cleanup  | 0/0            | Not started | -         |
+| Phase                 | Plans Complete | Status      | Completed  |
+| --------------------- | -------------- | ----------- | ---------- |
+| 1. Authentication     | 2/2            | ✅ Complete | 2026-02-22 |
+| 2. API Hardening      | 0/0            | Not started | -          |
+| 3. CI/CD Hardening    | 0/0            | Not started | -          |
+| 4. E2E Test Stability | 0/0            | Not started | -          |
+| 5. Bug Fixes          | 0/0            | Not started | -          |
+| 6. Milestone Cleanup  | 0/0            | Not started | -          |

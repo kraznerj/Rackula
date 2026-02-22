@@ -12,7 +12,7 @@
 
 ### Session Management
 
-- [ ] **SESS-01**: Session store uses shared TTL-backed storage (replacing in-memory Map) — #1269
+- [x] **SESS-01**: Session store uses shared TTL-backed storage (replacing in-memory Map) — #1269
 
 ### API Hardening
 
@@ -88,27 +88,27 @@
 
 ## Traceability
 
-| Requirement | Phase   | Status  |
-| ----------- | ------- | ------- |
-| SESS-01     | Phase 1 | Pending |
-| AUTH-01     | Phase 1 | Pending |
-| AUTH-02     | Phase 1 | Pending |
-| API-01      | Phase 2 | Pending |
-| API-02      | Phase 2 | Pending |
-| CI-01       | Phase 3 | Pending |
-| CI-02       | Phase 3 | Pending |
-| CI-03       | Phase 3 | Pending |
-| E2E-01      | Phase 4 | Pending |
-| E2E-02      | Phase 4 | Pending |
-| E2E-03      | Phase 4 | Pending |
-| E2E-04      | Phase 4 | Pending |
-| E2E-05      | Phase 4 | Pending |
-| E2E-06      | Phase 4 | Pending |
-| E2E-07      | Phase 4 | Pending |
-| BUG-01      | Phase 5 | Pending |
-| BUG-02      | Phase 5 | Pending |
-| BUG-03      | Phase 5 | Pending |
-| HK-01       | Phase 6 | Pending |
+| Requirement | Phase   | Status   |
+| ----------- | ------- | -------- |
+| SESS-01     | Phase 1 | Complete |
+| AUTH-01     | Phase 1 | Pending  |
+| AUTH-02     | Phase 1 | Pending  |
+| API-01      | Phase 2 | Pending  |
+| API-02      | Phase 2 | Pending  |
+| CI-01       | Phase 3 | Pending  |
+| CI-02       | Phase 3 | Pending  |
+| CI-03       | Phase 3 | Pending  |
+| E2E-01      | Phase 4 | Pending  |
+| E2E-02      | Phase 4 | Pending  |
+| E2E-03      | Phase 4 | Pending  |
+| E2E-04      | Phase 4 | Pending  |
+| E2E-05      | Phase 4 | Pending  |
+| E2E-06      | Phase 4 | Pending  |
+| E2E-07      | Phase 4 | Pending  |
+| BUG-01      | Phase 5 | Pending  |
+| BUG-02      | Phase 5 | Pending  |
+| BUG-03      | Phase 5 | Pending  |
+| HK-01       | Phase 6 | Pending  |
 
 **Coverage:**
 

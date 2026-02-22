@@ -36,11 +36,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 5. Unauthenticated user can still use the app in read-only mode (design freedom preserved)
 6. Self-hoster can follow documentation to configure OIDC with their IdP
 7. Self-hoster can harden auth settings using documented best practices
-   **Plans**: TBD
+   **Plans**: 2 plans
 
 Plans:
 
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Install Better Auth with stateless sessions and generic OIDC
+- [ ] 01-02-PLAN.md — Create authentication setup and hardening documentation
 
 ### Phase 2: API Hardening
 

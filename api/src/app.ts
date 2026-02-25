@@ -1,4 +1,4 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { bodyLimit } from "hono/body-limit";
@@ -15,6 +15,7 @@ import {
   createAuthHandler,
   createOptionalAuthMiddleware,
 } from "./middleware/auth";
+import { createAuth } from "./auth/config";
 import { createRequireAdminMiddleware } from "./authorization";
 
 const DEFAULT_MAX_ASSET_SIZE = 5 * 1024 * 1024; // 5MB
@@ -65,9 +66,16 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
     }),
   );
 
+  // Better Auth instance — created with validated session secret
+  const auth = securityConfig.authSessionSecret
+    ? createAuth(securityConfig.authSessionSecret)
+    : undefined;
+
   // Better Auth optional middleware - attaches session if present, never blocks
   // This preserves core value: "design with zero friction" (unauthenticated read access)
-  app.use("*", createOptionalAuthMiddleware());
+  if (auth) {
+    app.use("*", createOptionalAuthMiddleware(auth));
+  }
 
   app.use(
     "*",
@@ -81,9 +89,11 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
 
   // Better Auth routes handle all authentication endpoints
   // Mounted at both /auth/* and /api/auth/* for compatibility
-  const authHandler = createAuthHandler();
-  app.on(["POST", "GET"], "/auth/*", authHandler);
-  app.on(["POST", "GET"], "/api/auth/*", authHandler);
+  if (auth) {
+    const authHandler = createAuthHandler(auth);
+    app.on(["POST", "GET"], "/auth/*", authHandler);
+    app.on(["POST", "GET"], "/api/auth/*", authHandler);
+  }
 
   // Hono's "/path/*" pattern matches both "/path" and "/path/...".
   // Keep write-auth and body-limit middleware on matching wildcard path sets:

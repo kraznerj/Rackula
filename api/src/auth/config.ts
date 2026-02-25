@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
 
 /**
- * Better Auth configuration with stateless (cookie-only) sessions and generic OIDC.
+ * Better Auth configuration with stateless (cookie-only) sessions and optional OIDC.
  *
  * Session data is stored in signed/encrypted cookies with no database backend.
  * This eliminates server-side session storage while providing sessions that survive
@@ -20,50 +20,68 @@ import { genericOAuth } from "better-auth/plugins";
  * - RACKULA_OIDC_REDIRECT_URI: OAuth callback URL (optional, defaults to {baseURL}/api/auth/oauth2/callback/oidc)
  * - RACKULA_BASE_URL: Base URL for callback construction (defaults to http://localhost:3000)
  */
-export const auth = betterAuth({
-  // Omitting database config enables stateless mode (cookie-only sessions)
-  // Session data stored in signed cookies, no database queries for validation
-  secret: process.env.RACKULA_AUTH_SESSION_SECRET || "",
-  baseURL: process.env.RACKULA_BASE_URL || "http://localhost:3000",
+export function createAuth(secret: string) {
+  if (!secret) {
+    throw new Error(
+      "Auth session secret is required. Set RACKULA_AUTH_SESSION_SECRET.",
+    );
+  }
 
-  session: {
-    // 12 hours session lifetime (shorter than Better Auth default of 7 days)
-    expiresIn: 60 * 60 * 12,
+  const oidcClientId = process.env.RACKULA_OIDC_CLIENT_ID?.trim();
+  const oidcClientSecret = process.env.RACKULA_OIDC_CLIENT_SECRET?.trim();
+  const oidcConfigured = Boolean(oidcClientId && oidcClientSecret);
 
-    // Refresh session when 6 hours remain
-    updateAge: 60 * 60 * 6,
+  const plugins = oidcConfigured
+    ? [
+        genericOAuth({
+          config: [
+            {
+              providerId: "oidc",
+              clientId: oidcClientId!,
+              clientSecret: oidcClientSecret!,
+              discoveryUrl: process.env.RACKULA_OIDC_ISSUER
+                ? `${process.env.RACKULA_OIDC_ISSUER.replace(/\/$/, "")}/.well-known/openid-configuration`
+                : undefined,
+              scopes: ["openid", "profile", "email"],
+              pkce: true,
+              redirectURI: process.env.RACKULA_OIDC_REDIRECT_URI || undefined,
+            },
+          ],
+        }),
+      ]
+    : [];
 
-    // Cookie cache for performance optimization
-    cookieCache: {
-      enabled: true,
-      maxAge: 300, // 5-minute cache
+  return betterAuth({
+    // Omitting database config enables stateless mode (cookie-only sessions)
+    // Session data stored in signed cookies, no database queries for validation
+    secret,
+    baseURL: process.env.RACKULA_BASE_URL || "http://localhost:3000",
+
+    session: {
+      // 12 hours session lifetime (shorter than Better Auth default of 7 days)
+      expiresIn: 60 * 60 * 12,
+
+      // Refresh session when 6 hours remain
+      updateAge: 60 * 60 * 6,
+
+      // Cookie cache for performance optimization
+      cookieCache: {
+        enabled: true,
+        maxAge: 300, // 5-minute cache
+      },
     },
-  },
 
-  advanced: {
-    defaultCookieAttributes: {
-      httpOnly: true, // Prevent XSS access to cookie
-      sameSite: "lax", // CSRF protection
-      secure: process.env.NODE_ENV === "production", // HTTPS only in production
-      // domain: '.racku.la' // Uncomment if using subdomains
+    advanced: {
+      defaultCookieAttributes: {
+        httpOnly: true, // Prevent XSS access to cookie
+        sameSite: "lax", // CSRF protection
+        secure: process.env.NODE_ENV === "production", // HTTPS only in production
+        // domain: '.racku.la' // Uncomment if using subdomains
+      },
     },
-  },
 
-  plugins: [
-    genericOAuth({
-      config: [
-        {
-          providerId: "oidc",
-          clientId: process.env.RACKULA_OIDC_CLIENT_ID || "",
-          clientSecret: process.env.RACKULA_OIDC_CLIENT_SECRET || "",
-          discoveryUrl: process.env.RACKULA_OIDC_ISSUER
-            ? `${process.env.RACKULA_OIDC_ISSUER.replace(/\/$/, "")}/.well-known/openid-configuration`
-            : undefined,
-          scopes: ["openid", "profile", "email"],
-          pkce: true,
-          redirectURI: process.env.RACKULA_OIDC_REDIRECT_URI || undefined,
-        },
-      ],
-    }),
-  ],
-});
+    plugins,
+  });
+}
+
+export type Auth = ReturnType<typeof createAuth>;

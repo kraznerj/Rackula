@@ -46,6 +46,25 @@ function parseOidcScopes(raw: string | undefined): string[] {
   return scopes;
 }
 
+function parseOptionalBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") {
+    return true;
+  }
+
+  if (normalized === "false") {
+    return false;
+  }
+
+  throw new Error(
+    "RACKULA_AUTH_SESSION_COOKIE_SECURE must be either \"true\" or \"false\" when set.",
+  );
+}
+
 function parseAbsoluteUrl(
   value: string,
   envName: string,
@@ -231,14 +250,18 @@ function createOidcUserInfoResolver(options: {
 
   async function resolveDiscovery(): Promise<OidcDiscoveryDocument> {
     if (!discoveryPromise) {
-      discoveryPromise = fetchOidcDiscoveryDocument(
-        options.discoveryUrl,
-        options.expectedIssuer,
-      ).catch((error: unknown) => {
-        discoveryPromise = undefined;
-        jwks = undefined;
-        throw error;
-      });
+      discoveryPromise = (async () => {
+        try {
+          return await fetchOidcDiscoveryDocument(
+            options.discoveryUrl,
+            options.expectedIssuer,
+          );
+        } catch (error) {
+          discoveryPromise = undefined;
+          jwks = undefined;
+          throw error;
+        }
+      })();
     }
 
     return discoveryPromise;
@@ -306,6 +329,9 @@ export function createAuth(secret: string, env: EnvMap = process.env) {
     readEnv(env, "RACKULA_AUTH_SESSION_COOKIE_NAME") ||
     DEFAULT_AUTH_SESSION_COOKIE_NAME;
   const baseURL = readEnv(env, "RACKULA_BASE_URL") || DEFAULT_BASE_URL;
+  const authSessionCookieSecure =
+    parseOptionalBoolean(readEnv(env, "RACKULA_AUTH_SESSION_COOKIE_SECURE")) ??
+    env.NODE_ENV === "production";
 
   const plugins = [];
   if (oidcClientId && oidcClientSecret) {
@@ -360,9 +386,7 @@ export function createAuth(secret: string, env: EnvMap = process.env) {
     },
 
     advanced: {
-      // Keep custom cookie names exact (without auto __Secure- prefixing) so
-      // Rackula's CSRF/auth middleware can reliably read the configured cookie name.
-      useSecureCookies: false,
+      useSecureCookies: authSessionCookieSecure,
       cookies: {
         session_token: {
           name: authSessionCookieName,
@@ -371,7 +395,7 @@ export function createAuth(secret: string, env: EnvMap = process.env) {
       defaultCookieAttributes: {
         httpOnly: true, // Prevent XSS access to cookie
         sameSite: "lax", // CSRF protection
-        secure: env.NODE_ENV === "production", // HTTPS only in production
+        secure: authSessionCookieSecure,
         // domain: '.racku.la' // Uncomment if using subdomains
       },
     },

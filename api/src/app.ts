@@ -106,15 +106,6 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
     }),
   );
 
-  /** Sets canonical auth context consumed by authorization middleware. */
-  const setCanonicalAuthContext = (
-    c: Context<AppEnv>,
-    claims: AuthSessionClaims,
-  ): void => {
-    c.set("authSubject", claims.sub);
-    c.set("authClaims", claims);
-  };
-
   if (securityConfig.authEnabled) {
     const authApi = (auth?.api ?? {}) as Record<string, unknown>;
     const authPlugins = Array.isArray(auth?.options?.plugins)
@@ -177,7 +168,8 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
         );
       }
 
-      setCanonicalAuthContext(c, claims);
+      c.set("authSubject", claims.sub);
+      c.set("authClaims", claims);
 
       const refreshedCookie = createRefreshedAuthSessionCookieHeader(
         claims,
@@ -196,7 +188,8 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
         authSessionConfig,
       );
       if (claims) {
-        setCanonicalAuthContext(c, claims);
+        c.set("authSubject", claims.sub);
+        c.set("authClaims", claims);
         invalidateAuthSession(claims.sid, claims.exp);
         safeLogAuthEvent("auth.logout", c.req.raw, { subject: claims.sub });
       }

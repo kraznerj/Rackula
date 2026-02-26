@@ -187,7 +187,8 @@ describe("auth event integration", () => {
   it("logs auth.session.invalid when anonymous request hits auth gate", async () => {
     const app = createApp(buildAuthEnabledEnv());
 
-    await app.request("/api/layouts");
+    const response = await app.request("/api/layouts");
+    expect(response.status).toBe(401);
 
     const authEvents = extractAuthEvents(writeSpy);
 

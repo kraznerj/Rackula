@@ -248,12 +248,13 @@ describe("auth event integration", () => {
   it("does not log auth.session.invalid on valid auth check", async () => {
     const app = createApp(buildAuthEnabledEnv());
 
-    await app.request("/auth/check", {
+    const response = await app.request("/auth/check", {
       headers: {
         Cookie: buildAuthCookie({ sid: "check-success" }),
         Origin: "https://rack.example.com",
       },
     });
+    expect(response.status).toBe(204);
 
     const authEvents = extractAuthEvents(writeSpy);
 
@@ -265,7 +266,8 @@ describe("auth event integration", () => {
   it("logs auth.session.invalid on invalid auth check", async () => {
     const app = createApp(buildAuthEnabledEnv());
 
-    await app.request("/auth/check");
+    const response = await app.request("/auth/check");
+    expect(response.status).toBe(401);
 
     const authEvents = extractAuthEvents(writeSpy);
 

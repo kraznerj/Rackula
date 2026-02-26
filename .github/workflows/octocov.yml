@@ -2,7 +2,7 @@ name: The Count's Code Census
 # Metrics pipeline: runs tests with coverage, publishes octocov report,
 # generates shields.io badge JSON, and pushes badges to orphan 'badges' branch.
 # Main branch is never directly mutated by this workflow.
-# Badge URLs: https://raw.githubusercontent.com/RackulaLives/Rackula/report/badges/*.json
+# Badge URLs: https://raw.githubusercontent.com/RackulaLives/Rackula/report/badges/docs/badges/*.json
 
 on:
   push:

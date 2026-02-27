@@ -79,7 +79,9 @@ function readSetCookieHeaders(headers: Headers | undefined): string[] {
     return [];
   }
 
-  const withGetSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const withGetSetCookie = headers as Headers & {
+    getSetCookie?: () => string[];
+  };
   if (typeof withGetSetCookie.getSetCookie === "function") {
     return withGetSetCookie.getSetCookie();
   }
@@ -88,13 +90,18 @@ function readSetCookieHeaders(headers: Headers | undefined): string[] {
   return rawSetCookie ? [rawSetCookie] : [];
 }
 
-function appendSetCookieHeaders(c: Context, headers: Headers | undefined): void {
+function appendSetCookieHeaders(
+  c: Context,
+  headers: Headers | undefined,
+): void {
   for (const setCookieHeader of readSetCookieHeaders(headers)) {
     c.header("Set-Cookie", setCookieHeader, { append: true });
   }
 }
 
-function toEpochSeconds(value: Date | string | number | undefined): number | null {
+function toEpochSeconds(
+  value: Date | string | number | undefined,
+): number | null {
   if (value instanceof Date) {
     const epochSeconds = Math.floor(value.getTime() / 1000);
     return Number.isFinite(epochSeconds) ? epochSeconds : null;
@@ -147,10 +154,17 @@ function mapFallbackSessionClaims(
 
   const fallbackSubject =
     session.user.email?.trim() || session.user.id?.trim() || "oidc-user";
+  if (fallbackSubject === "oidc-user") {
+    console.warn(
+      "auth: OIDC session missing user identity (email and id), using generic subject",
+    );
+  }
   if (!fallbackSubject) {
     return null;
   }
 
+  // MVP: all authenticated users get admin role. Role-based access control
+  // (viewer, editor) will be added when RACKULA_OIDC_ROLE_CLAIM is implemented.
   return {
     sub: fallbackSubject,
     sid: sessionId,
@@ -182,14 +196,19 @@ function validateFallbackSessionClaims(
       {
         sessionGeneration: authSessionConfig.authSessionGeneration,
         sessionMaxAgeSeconds: authSessionConfig.authSessionMaxAgeSeconds,
-        sessionIdleTimeoutSeconds: authSessionConfig.authSessionIdleTimeoutSeconds,
+        sessionIdleTimeoutSeconds:
+          authSessionConfig.authSessionIdleTimeoutSeconds,
       },
     );
 
-    return verifySignedAuthSessionToken(token, authSessionConfig.authSessionSecret, {
-      expectedGeneration: authSessionConfig.authSessionGeneration,
-      maxSessionMaxAgeSeconds: authSessionConfig.authSessionMaxAgeSeconds,
-    });
+    return verifySignedAuthSessionToken(
+      token,
+      authSessionConfig.authSessionSecret,
+      {
+        expectedGeneration: authSessionConfig.authSessionGeneration,
+        maxSessionMaxAgeSeconds: authSessionConfig.authSessionMaxAgeSeconds,
+      },
+    );
   } catch {
     return null;
   }
@@ -266,7 +285,10 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
       });
 
       const mappedFallbackClaims = fallbackSessionResult.response
-        ? mapFallbackSessionClaims(fallbackSessionResult.response, authSessionConfig)
+        ? mapFallbackSessionClaims(
+            fallbackSessionResult.response,
+            authSessionConfig,
+          )
         : null;
       return mappedFallbackClaims
         ? validateFallbackSessionClaims(mappedFallbackClaims, authSessionConfig)
@@ -280,10 +302,13 @@ export function createApp(env: EnvMap = process.env): Hono<AppEnv> {
   if (securityConfig.authEnabled) {
     app.use(
       "*",
-      createAuthGateMiddleware({
-        ...authSessionConfig,
-        authLoginPath: securityConfig.authLoginPath,
-      }, (request) => resolveFallbackClaims(request.headers)),
+      createAuthGateMiddleware(
+        {
+          ...authSessionConfig,
+          authLoginPath: securityConfig.authLoginPath,
+        },
+        (request) => resolveFallbackClaims(request.headers),
+      ),
     );
   }
 

@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 
-type EnvMap = Record<string, string | undefined>;
+import type { EnvMap } from "../security";
 
 const DEFAULT_BASE_URL = "http://localhost:3000";
 const DEFAULT_AUTH_SESSION_COOKIE_NAME = "rackula_auth_session";
@@ -32,8 +32,9 @@ function parseOidcScopes(raw: string | undefined): string[] {
     return [...DEFAULT_OIDC_SCOPES];
   }
 
-  const scopes = [...new Set(raw.split(/[,\s]+/).map((scope) => scope.trim()))]
-    .filter((scope) => scope.length > 0);
+  const scopes = [
+    ...new Set(raw.split(/[,\s]+/).map((scope) => scope.trim())),
+  ].filter((scope) => scope.length > 0);
 
   if (scopes.length === 0) {
     return [...DEFAULT_OIDC_SCOPES];
@@ -61,14 +62,11 @@ function parseOptionalBoolean(value: string | undefined): boolean | undefined {
   }
 
   throw new Error(
-    "RACKULA_AUTH_SESSION_COOKIE_SECURE must be either \"true\" or \"false\" when set.",
+    'RACKULA_AUTH_SESSION_COOKIE_SECURE must be either "true" or "false" when set.',
   );
 }
 
-function parseAbsoluteUrl(
-  value: string,
-  envName: string,
-): URL {
+function parseAbsoluteUrl(value: string, envName: string): URL {
   try {
     return new URL(value);
   } catch (error) {
@@ -170,6 +168,7 @@ async function fetchOidcDiscoveryDocument(
     headers: {
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) {
     throw new Error(
@@ -197,7 +196,10 @@ async function fetchOidcDiscoveryDocument(
 
   return {
     issuer,
-    jwksUri: parseAbsoluteUrl(jwksUriValue, "OIDC discovery jwks_uri").toString(),
+    jwksUri: parseAbsoluteUrl(
+      jwksUriValue,
+      "OIDC discovery jwks_uri",
+    ).toString(),
   };
 }
 

@@ -67,9 +67,42 @@ export interface ApiSecurityConfig {
 export type EnvMap = Record<string, string | undefined>;
 
 const WRITE_METHODS = new Set(["PUT", "DELETE"]);
-export const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+/**
+ * HTTP methods that are considered to change server state.
+ *
+ * Used by CSRF protection middleware and validation logic to determine
+ * whether a request requires origin verification. Exported and immutable.
+ *
+ * @constant
+ * @type {Set<string>}
+ * @example
+ * ```ts
+ * // Methods are stored as uppercase strings — normalize input before checking:
+ * if (STATE_CHANGING_METHODS.has(method.toUpperCase())) { ... }
+ * ```
+ */
+export const STATE_CHANGING_METHODS = new Set([
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+]);
 const AUTH_MODES = new Set<AuthMode>(["none", "oidc", "local"]);
 const AUTH_PUBLIC_PATHS = new Set([
+  "/health",
+  "/api/health",
+  "/auth/login",
+  "/auth/callback",
+  "/auth/check",
+  "/auth/logout",
+  "/api/auth/login",
+  "/api/auth/callback",
+  "/api/auth/check",
+  "/api/auth/logout",
+]);
+// Paths that bypass CSRF validation — only safe GET-like auth bootstrap endpoints.
+// Logout is intentionally excluded: it's a state-changing POST that needs CSRF protection.
+const CSRF_EXEMPT_AUTH_PATHS = new Set([
   "/health",
   "/api/health",
   "/auth/login",
@@ -240,7 +273,9 @@ function parseLoginPath(value: string | undefined): string {
   return path;
 }
 
-function parseAuthSessionSameSite(value: string | undefined): AuthSessionSameSite {
+function parseAuthSessionSameSite(
+  value: string | undefined,
+): AuthSessionSameSite {
   if (!value || value.trim().length === 0) {
     return DEFAULT_AUTH_SESSION_SAME_SITE;
   }
@@ -362,7 +397,9 @@ function isStateChangingMethod(method: string): boolean {
 
 function buildLoginRedirectUrl(requestUrl: string, loginPath: string): string {
   if (loginPath.startsWith("//") || /^[a-z][a-z0-9+.-]*:/i.test(loginPath)) {
-    throw new Error(`Invalid auth login path: "${loginPath}". External URLs are not allowed.`);
+    throw new Error(
+      `Invalid auth login path: "${loginPath}". External URLs are not allowed.`,
+    );
   }
 
   const url = new URL(requestUrl);
@@ -427,7 +464,10 @@ function cleanupInvalidatedAuthSessions(nowSeconds: number): void {
   }
 }
 
-function isAuthSessionInvalidated(sessionId: string, nowSeconds: number): boolean {
+function isAuthSessionInvalidated(
+  sessionId: string,
+  nowSeconds: number,
+): boolean {
   const expiresAtSeconds = invalidatedAuthSessionIds.get(sessionId);
   if (expiresAtSeconds === undefined) {
     return false;
@@ -463,7 +503,10 @@ function resolveRequestOrigin(request: Request): string | null {
   }
 }
 
-function isTrustedOrigin(requestOrigin: string, trustedOrigins: string[]): boolean {
+function isTrustedOrigin(
+  requestOrigin: string,
+  trustedOrigins: string[],
+): boolean {
   return trustedOrigins.includes(requestOrigin);
 }
 
@@ -529,7 +572,8 @@ export function createSignedAuthSessionToken(
   const maxAgeSeconds =
     options.sessionMaxAgeSeconds ?? DEFAULT_AUTH_SESSION_MAX_AGE_SECONDS;
   const idleTimeoutSeconds =
-    options.sessionIdleTimeoutSeconds ?? DEFAULT_AUTH_SESSION_IDLE_TIMEOUT_SECONDS;
+    options.sessionIdleTimeoutSeconds ??
+    DEFAULT_AUTH_SESSION_IDLE_TIMEOUT_SECONDS;
   const sessionGeneration = options.sessionGeneration ?? 0;
 
   const subject = claims.sub.trim();
@@ -752,7 +796,10 @@ export function invalidateAuthSession(
     let earliestExpiry = Number.POSITIVE_INFINITY;
     let earliestExpirySessionId: string | undefined;
 
-    for (const [candidateSessionId, candidateExpiry] of invalidatedAuthSessionIds) {
+    for (const [
+      candidateSessionId,
+      candidateExpiry,
+    ] of invalidatedAuthSessionIds) {
       if (candidateExpiry < earliestExpiry) {
         earliestExpiry = candidateExpiry;
         earliestExpirySessionId = candidateSessionId;
@@ -882,7 +929,11 @@ export function createRefreshedAuthSessionCookieHeader(
     },
   );
 
-  return createAuthSessionCookieHeader(refreshedToken, claims.exp, securityConfig);
+  return createAuthSessionCookieHeader(
+    refreshedToken,
+    claims.exp,
+    securityConfig,
+  );
 }
 
 /**
@@ -969,7 +1020,8 @@ export function resolveApiSecurityConfig(
   const authSessionSecretRaw =
     env.RACKULA_AUTH_SESSION_SECRET ?? env.AUTH_SESSION_SECRET;
   const authSessionSecret = authSessionSecretRaw?.trim() || undefined;
-  const authLogHashKeyRaw = env.RACKULA_AUTH_LOG_HASH_KEY ?? env.AUTH_LOG_HASH_KEY;
+  const authLogHashKeyRaw =
+    env.RACKULA_AUTH_LOG_HASH_KEY ?? env.AUTH_LOG_HASH_KEY;
 
   if (authEnabled && !authSessionSecret) {
     throw new Error(
@@ -1146,7 +1198,9 @@ export function createAuthGateMiddleware(
       );
     }
 
-    return c.redirect(buildLoginRedirectUrl(c.req.url, securityConfig.authLoginPath));
+    return c.redirect(
+      buildLoginRedirectUrl(c.req.url, securityConfig.authLoginPath),
+    );
   };
 }
 
@@ -1178,13 +1232,16 @@ export function createCsrfProtectionMiddleware(
     }
 
     const pathname = new URL(c.req.url).pathname;
-    if (isAuthPublicPath(pathname)) {
+    if (CSRF_EXEMPT_AUTH_PATHS.has(pathname)) {
       await next();
       return;
     }
 
     const hasSessionCookie = Boolean(
-      extractCookieValue(c.req.header("cookie"), securityConfig.authSessionCookieName),
+      extractCookieValue(
+        c.req.header("cookie"),
+        securityConfig.authSessionCookieName,
+      ),
     );
     if (!hasSessionCookie) {
       await next();
@@ -1196,8 +1253,7 @@ export function createCsrfProtectionMiddleware(
       return c.json(
         {
           error: "Forbidden",
-          message:
-            "CSRF validation failed: missing Origin or Referer header.",
+          message: "CSRF validation failed: missing Origin or Referer header.",
         },
         403,
       );

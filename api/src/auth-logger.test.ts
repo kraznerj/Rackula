@@ -187,7 +187,8 @@ describe("auth event integration", () => {
   it("logs auth.session.invalid when anonymous request hits auth gate", async () => {
     const app = createApp(buildAuthEnabledEnv());
 
-    await app.request("/api/layouts");
+    const response = await app.request("/api/layouts");
+    expect(response.status).toBe(401);
 
     const authEvents = extractAuthEvents(writeSpy);
 
@@ -248,12 +249,13 @@ describe("auth event integration", () => {
   it("does not log auth.session.invalid on valid auth check", async () => {
     const app = createApp(buildAuthEnabledEnv());
 
-    await app.request("/auth/check", {
+    const response = await app.request("/auth/check", {
       headers: {
         Cookie: buildAuthCookie({ sid: "check-success" }),
         Origin: "https://rack.example.com",
       },
     });
+    expect(response.status).toBe(204);
 
     const authEvents = extractAuthEvents(writeSpy);
 
@@ -265,7 +267,8 @@ describe("auth event integration", () => {
   it("logs auth.session.invalid on invalid auth check", async () => {
     const app = createApp(buildAuthEnabledEnv());
 
-    await app.request("/auth/check");
+    const response = await app.request("/auth/check");
+    expect(response.status).toBe(401);
 
     const authEvents = extractAuthEvents(writeSpy);
 
@@ -288,19 +291,12 @@ describe("auth event integration", () => {
       },
     });
 
-    const allOutput = writeSpy.mock.calls.map((c) => c[0] as string).join("");
-    const authLines = allOutput.split("\n").filter((line) => {
-      try {
-        const parsed = JSON.parse(line);
-        return parsed.event?.startsWith("auth.");
-      } catch {
-        return false;
-      }
-    });
+    const authEvents = extractAuthEvents(writeSpy);
 
-    for (const line of authLines) {
-      expect(line).not.toContain(tokenValue);
-      expect(line).not.toContain("rackula_auth_session=");
+    for (const event of authEvents) {
+      const serialized = JSON.stringify(event);
+      expect(serialized).not.toContain(tokenValue);
+      expect(serialized).not.toContain("rackula_auth_session=");
     }
   });
 });

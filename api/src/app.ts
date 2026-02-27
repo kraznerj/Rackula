@@ -159,10 +159,6 @@ function mapFallbackSessionClaims(
       "auth: OIDC session missing user identity (email and id), using generic subject",
     );
   }
-  if (!fallbackSubject) {
-    return null;
-  }
-
   // MVP: all authenticated users get admin role. Role-based access control
   // (viewer, editor) will be added when RACKULA_OIDC_ROLE_CLAIM is implemented.
   return {

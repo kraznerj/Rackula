@@ -291,19 +291,12 @@ describe("auth event integration", () => {
       },
     });
 
-    const allOutput = writeSpy.mock.calls.map((c) => c[0] as string).join("");
-    const authLines = allOutput.split("\n").filter((line) => {
-      try {
-        const parsed = JSON.parse(line);
-        return parsed.event?.startsWith("auth.");
-      } catch {
-        return false;
-      }
-    });
+    const authEvents = extractAuthEvents(writeSpy);
 
-    for (const line of authLines) {
-      expect(line).not.toContain(tokenValue);
-      expect(line).not.toContain("rackula_auth_session=");
+    for (const event of authEvents) {
+      const serialized = JSON.stringify(event);
+      expect(serialized).not.toContain(tokenValue);
+      expect(serialized).not.toContain("rackula_auth_session=");
     }
   });
 });

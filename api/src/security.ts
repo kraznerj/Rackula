@@ -67,6 +67,20 @@ export interface ApiSecurityConfig {
 export type EnvMap = Record<string, string | undefined>;
 
 const WRITE_METHODS = new Set(["PUT", "DELETE"]);
+/**
+ * HTTP methods that are considered to change server state.
+ *
+ * Used by CSRF protection middleware and validation logic to determine
+ * whether a request requires origin verification. Exported and immutable.
+ *
+ * @constant
+ * @type {Set<string>}
+ * @example
+ * ```ts
+ * // Methods are stored as uppercase strings — normalize input before checking:
+ * if (STATE_CHANGING_METHODS.has(method.toUpperCase())) { ... }
+ * ```
+ */
 export const STATE_CHANGING_METHODS = new Set([
   "POST",
   "PUT",

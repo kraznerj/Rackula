@@ -24,6 +24,7 @@
 
 import type { Layout, LayoutMetadata } from "$lib/types";
 import type { ImageData, ImageStoreMap } from "$lib/types/images";
+import { ARCHIVE_EXTENSION } from "$lib/types/constants";
 import { serializeLayoutToYamlWithMetadata, parseLayoutYaml } from "./yaml";
 import { generateId } from "./device";
 import {
@@ -635,12 +636,12 @@ function blobToDataUrl(blob: Blob): Promise<string | null> {
 /**
  * Generate a safe archive filename from layout with UUID
  *
- * New format (#919): {Layout Name}-{UUID}.zip
- * Example: "My Homelab-550e8400-e29b-41d4-a716-446655440000.zip"
+ * Format: {Layout Name}-{UUID}.Rackula.zip
+ * Example: "My Homelab-550e8400-e29b-41d4-a716-446655440000.Rackula.zip"
  *
  * @param layout - The layout to generate filename for
  * @param metadata - Optional metadata with UUID (will be generated if not provided)
- * @returns Filename with .zip extension
+ * @returns Filename with .Rackula.zip extension
  */
 export function generateArchiveFilename(
   layout: Layout,
@@ -652,15 +653,21 @@ export function generateArchiveFilename(
     schema_version: "1.0",
   };
 
-  return `${buildFolderName(layoutMetadata.name, layoutMetadata.id)}.zip`;
+  return `${buildFolderName(layoutMetadata.name, layoutMetadata.id)}${ARCHIVE_EXTENSION}`;
 }
 
 /**
- * Download a layout as a folder-based ZIP archive
+ * Save a layout as a folder-based ZIP archive.
+ *
+ * Uses browser-fs-access fileSave() which provides:
+ * - Native "Save As" dialog on Chromium (File System Access API)
+ * - Anchor download fallback on Firefox/Safari
+ *
  * @param layout - The layout to save
  * @param images - Map of device images
  * @param metadata - Optional metadata (will be generated if not provided)
  * @param filename - Optional custom filename (overrides generated name)
+ * @throws {DOMException} AbortError if user cancels native save dialog
  */
 export async function downloadArchive(
   layout: Layout,
@@ -668,6 +675,8 @@ export async function downloadArchive(
   metadata?: LayoutMetadata,
   filename?: string,
 ): Promise<void> {
+  const { fileSave } = await import("browser-fs-access");
+
   // Generate metadata if not provided (used for both archive and filename)
   const layoutMetadata: LayoutMetadata = metadata ?? {
     id: generateId(),
@@ -677,23 +686,15 @@ export async function downloadArchive(
 
   // Create the folder archive with metadata
   const blob = await createFolderArchive(layout, images, layoutMetadata);
+  const suggestedName =
+    filename ?? generateArchiveFilename(layout, layoutMetadata);
 
-  // Create object URL for the blob
-  const url = URL.createObjectURL(blob);
-
-  try {
-    // Create a temporary anchor element
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download =
-      filename ?? generateArchiveFilename(layout, layoutMetadata);
-
-    // Trigger the download
-    anchor.click();
-  } finally {
-    // Clean up the object URL
-    URL.revokeObjectURL(url);
-  }
+  // fileSave: native save dialog on Chromium, anchor fallback on FF/Safari
+  await fileSave(blob, {
+    fileName: suggestedName,
+    extensions: [ARCHIVE_EXTENSION, ".zip"],
+    description: "Rackula Layout Archive",
+  });
 }
 
 // Re-export folder structure utilities for convenience

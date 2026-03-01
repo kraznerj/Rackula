@@ -26,8 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clear validation errors on input and add success toast for device creation (#1316)
 - Allow whole number heights for custom devices (#1307, PR #1308)
 
+### Security
+
+- Remediated libpng heap buffer overflow CVE-2026-25646 in frontend container image
+- Upgraded hono to 4.12.2+ to fix authentication bypass CVE-2026-27700 in API container
+
 ### Technical
 
+- Pin Trivy version in deploy-prod workflow to avoid setup-trivy git clone failures
 - Tiered CI testing strategy (PR #1311)
 - Harden deploy-prod with tag validation gate (PR #1318)
 - Tighten Claude workflow trust boundary (PR #1319)

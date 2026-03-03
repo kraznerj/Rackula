@@ -7,6 +7,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { safeLogAuthEvent, MIN_AUTH_LOG_HASH_KEY_LENGTH } from "./auth-logger";
+import type { LocalCredentials } from "./local-auth";
 
 export type AuthMode = "none" | "oidc" | "local";
 export type AuthSessionSameSite = "Lax" | "Strict" | "None";
@@ -62,6 +63,7 @@ export interface ApiSecurityConfig {
   authLoginPath: string;
   csrfProtectionEnabled: boolean;
   csrfTrustedOrigins: string[];
+  localCredentials?: LocalCredentials;
 }
 
 export type EnvMap = Record<string, string | undefined>;
@@ -101,14 +103,14 @@ const AUTH_PUBLIC_PATHS = new Set([
   "/api/auth/logout",
 ]);
 // Paths that bypass CSRF validation — only safe GET-like auth bootstrap endpoints.
+// Login paths are intentionally NOT exempt: the middleware's "no session cookie → skip"
+// gate already allows initial logins, while re-auth with an existing session gets CSRF-checked.
 // Logout is intentionally excluded: it's a state-changing POST that needs CSRF protection.
 const CSRF_EXEMPT_AUTH_PATHS = new Set([
   "/health",
   "/api/health",
-  "/auth/login",
   "/auth/callback",
   "/auth/check",
-  "/api/auth/login",
   "/api/auth/callback",
   "/api/auth/check",
 ]);

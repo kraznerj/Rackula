@@ -78,6 +78,7 @@ If you deploy Rackula behind Nginx auth_request, keep this contract consistent:
   - `401` = unauthenticated
 
 When protecting app routes with `auth_request`, redirect unauthorized requests to:
+
 - `/auth/login?next=<path>` (path and query string are preserved; caveat: if the original URL contains multiple `&`-delimited query params, only the first segment stays in `next=` because standard nginx cannot URI-encode the value)
 
 ## Prerequisites
@@ -324,6 +325,72 @@ Follow this testing checklist to verify authentication is working correctly:
    - Expected: Still authenticated (no re-login required)
 
 **Troubleshooting failed verification:** See the Troubleshooting section below.
+
+## Local Authentication
+
+Local authentication provides a simple username/password login for single-admin homelab deployments that don't require an external identity provider.
+
+### When to Use
+
+- Single-user or single-admin homelabs
+- Deployments without an OIDC-compatible identity provider (Authentik, Authelia, Keycloak, etc.)
+- Quick setup where external IdP infrastructure is not justified
+
+For multi-user deployments or environments where centralized identity management is preferred, use OIDC mode instead.
+
+### Configuration
+
+Set the following environment variables:
+
+```bash
+# Required
+RACKULA_AUTH_MODE=local
+RACKULA_LOCAL_USERNAME=admin
+RACKULA_LOCAL_PASSWORD=your-secure-password-here   # minimum 12 characters
+RACKULA_AUTH_SESSION_SECRET=your-random-secret-here # minimum 32 characters
+CORS_ORIGIN=https://your-rackula-domain.com        # CSRF protection requires this
+```
+
+> **Password quoting:** If your password contains shell metacharacters (`$`, `!`, `\`, etc.), use single quotes when setting via shell export: `export RACKULA_LOCAL_PASSWORD='my$ecure!pass'`. In Docker `.env` files and `docker-compose.yml`, quoting is generally not needed unless the value contains `#` (comment character).
+
+> **HTTP deployments:** If accessing Rackula over plain HTTP (no TLS), you must set `RACKULA_AUTH_SESSION_COOKIE_SECURE=false`. Without this, login will appear to succeed but the browser silently rejects the `Secure`-flagged session cookie, and every subsequent request fails authentication. This is the most common deployment pitfall for homelab setups without a reverse proxy terminating TLS.
+
+All session-related variables from the OIDC section also apply:
+
+- `RACKULA_AUTH_SESSION_MAX_AGE_SECONDS` — absolute session lifetime (default: 43200 / 12 hours)
+- `RACKULA_AUTH_SESSION_IDLE_TIMEOUT_SECONDS` — inactivity timeout (default: 1800 / 30 minutes)
+- `RACKULA_AUTH_SESSION_COOKIE_SECURE` — require HTTPS for cookies (default: true)
+- `RACKULA_AUTH_SESSION_COOKIE_SAMESITE` — SameSite cookie policy (default: Lax)
+
+### How It Works
+
+1. **Startup:** The API hashes the configured password with Argon2id (OWASP-recommended parameters) and holds the hash in memory. The plaintext password is never stored.
+2. **Login:** Users POST credentials to `/auth/login` (or `/api/auth/login`). The API performs timing-safe username comparison and Argon2id password verification.
+3. **Session:** On successful login, the API issues the same HMAC-signed session cookie used by OIDC mode. Sessions are stateless and survive container restarts.
+4. **Rate limiting:** A sliding-window rate limiter (5 attempts per 60 seconds per IP) protects against brute-force attacks.
+5. **Logout:** POST to `/auth/logout` invalidates the session and expires the cookie.
+
+### Login Page
+
+When `RACKULA_AUTH_MODE=local`, nginx serves a static login page at `/auth/login`. The login form submits credentials to the API endpoint, which validates them and sets the session cookie.
+
+### Password Reset
+
+To change the password:
+
+1. Update `RACKULA_LOCAL_PASSWORD` in your environment configuration
+2. Restart the API service (`docker compose restart api`)
+3. The new password hash is computed at startup
+
+> **Important:** Changing the password does **not** invalidate existing sessions. Anyone with a valid session cookie can continue accessing Rackula until the session expires naturally. To force all sessions to expire immediately, rotate `RACKULA_AUTH_SESSION_SECRET` at the same time as the password change.
+
+### Migrating Between Auth Modes
+
+Changing `RACKULA_AUTH_MODE` between `local`, `oidc`, and `none` does not require data migration. However:
+
+- Existing sessions from the previous mode remain valid until they expire
+- To immediately invalidate all sessions, rotate `RACKULA_AUTH_SESSION_SECRET`
+- OIDC-specific variables (`RACKULA_OIDC_*`) are ignored in local mode and vice versa
 
 ## Security Hardening
 
@@ -667,25 +734,7 @@ No built-in logging of authentication events (login attempts, session creation, 
 **When to address:**
 Planned for v2.0 (structured logging of auth events).
 
-### 3. No Local Username/Password Authentication
-
-**Limitation:**
-Authentication requires external OIDC identity provider. No built-in local user database.
-
-**Impact:**
-
-- Cannot use Rackula without deploying separate IdP
-- Not suitable for users wanting standalone authentication
-
-**Workarounds:**
-
-- Deploy lightweight IdP like Authelia or Authentik
-- Use hosted OIDC provider (Auth0, Okta, etc.)
-
-**When to address:**
-Planned for v2.0 (optional local authentication mode).
-
-### 4. No Multi-Factor Authentication (MFA) in Rackula
+### 3. No Multi-Factor Authentication (MFA) in Rackula
 
 **Limitation:**
 MFA is delegated entirely to the identity provider. Rackula does not enforce or verify MFA.
@@ -704,7 +753,7 @@ MFA is delegated entirely to the identity provider. Rackula does not enforce or 
 **When to address:**
 No plans to implement in Rackula; IdP-based MFA is sufficient for target use case.
 
-### 5. No User Management UI in Rackula
+### 4. No User Management UI in Rackula
 
 **Limitation:**
 All user management (create users, reset passwords, manage permissions) must be done in IdP admin console.
@@ -728,7 +777,6 @@ These features are not implemented in v0.9.0 but may be added in future versions
 
 - **Database-backed sessions** - Enable instant server-side session revocation
 - **Structured authentication logging** - Audit trail for login attempts, session creation, failures
-- **Local username/password authentication** - Optional standalone auth without external IdP
 - **Session secret rotation** - Automated rotation without invalidating all sessions
 - **Session management UI** - View active sessions, revoke specific sessions
 

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-03-05
+
+### Added
+
+- Local authentication mode with username/password login (#1117, PR #1356)
+- Move compatible-only toggle from device palette to Settings menu (#1361, PR #1379)
+
+### Fixed
+
+- Export dialog preview clipped for tall racks (#1350, PR #1380)
+- Defence-in-depth guards for duplicate device IDs preventing layout load (#1363, PR #1378)
+- Stale auth documentation referencing removed environment variables (#1102, PR #1373)
+- Restore Trivy scan gating in deploy-prod workflow (#1360, PR #1381)
+
+### Security
+
+- Reject control characters in `normalizeNextPath()` to prevent CRLF injection (#1371, PR #1382)
+- Require OIDC issuer pinning when discovery URL is configured (#1372, PR #1382)
+
 ## [0.8.5] - 2026-03-01
 
 ### Added

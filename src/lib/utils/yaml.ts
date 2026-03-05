@@ -16,6 +16,22 @@ import type {
   LayoutMetadata,
 } from "$lib/types";
 import { LayoutSchema, type LayoutZod } from "$lib/schemas";
+import { layoutDebug } from "$lib/utils/debug";
+
+/**
+ * Warn if any rack contains duplicate device IDs before serialization (#1363)
+ */
+function warnDuplicateDeviceIds(layout: Layout): void {
+  for (const rack of layout.racks) {
+    const ids = rack.devices.map((d) => d.id);
+    if (new Set(ids).size !== ids.length) {
+      layoutDebug.state(
+        'Saving layout with duplicate device IDs in rack "%s". This may cause load errors.',
+        rack.name,
+      );
+    }
+  }
+}
 
 const STANDARD_RACK_WIDTH = 19;
 
@@ -226,6 +242,8 @@ function orderMetadataFields(
  * Includes metadata if present
  */
 export async function serializeLayoutToYaml(layout: Layout): Promise<string> {
+  warnDuplicateDeviceIds(layout);
+
   const layoutForSerialization: Record<string, unknown> = {};
 
   // Include metadata at the top if present
@@ -287,6 +305,8 @@ export async function serializeLayoutToYamlWithMetadata(
   layout: Layout,
   metadata: LayoutMetadata,
 ): Promise<string> {
+  warnDuplicateDeviceIds(layout);
+
   const layoutForSerialization: Record<string, unknown> = {
     // Metadata section at the top
     metadata: orderMetadataFields(metadata),

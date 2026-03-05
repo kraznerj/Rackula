@@ -835,9 +835,9 @@ function needsPositionMigration(
  * Container children (with container_id) are NOT migrated since they use
  * 0-indexed positions relative to the container.
  */
-function migrateDevicePositions<T extends { position: number; container_id?: string }>(
-  devices: T[],
-): T[] {
+function migrateDevicePositions<
+  T extends { position: number; container_id?: string },
+>(devices: T[]): T[] {
   return devices.map((device) => {
     // Container children keep their 0-indexed positions
     if (device.container_id !== undefined) {
@@ -880,14 +880,38 @@ const LayoutSchemaBase = LayoutSchemaInput.transform((data) => {
   // Check if positions need migration (pre-0.7.0 format)
   const migratePositions = needsPositionMigration(data.version, allDevices);
 
-  // Generate IDs for racks missing them and migrate positions if needed
-  const racksWithIds = racks.map((rack) => ({
-    ...rack,
-    id: rack.id ?? nanoid(),
-    devices: migratePositions
-      ? migrateDevicePositions(rack.devices)
-      : rack.devices,
-  }));
+  // Generate IDs for racks missing them, deduplicate device IDs, and migrate positions if needed
+  const racksWithIds = racks.map((rack) => {
+    // Deduplicate device IDs to prevent Svelte each_key_duplicate errors (#1363)
+    const seenDeviceIds = new Set<string>();
+    const idRemap = new Map<string, string>();
+    const deduplicatedDevices = rack.devices.map((d) => {
+      let nextId = d.id;
+      if (seenDeviceIds.has(nextId)) {
+        const oldId = nextId;
+        do {
+          nextId = nanoid();
+        } while (seenDeviceIds.has(nextId));
+        idRemap.set(oldId, nextId);
+      }
+      seenDeviceIds.add(nextId);
+      const nextContainerId =
+        d.container_id && idRemap.has(d.container_id)
+          ? idRemap.get(d.container_id)!
+          : d.container_id;
+      return nextId === d.id && nextContainerId === d.container_id
+        ? d
+        : { ...d, id: nextId, container_id: nextContainerId };
+    });
+
+    return {
+      ...rack,
+      id: rack.id ?? nanoid(),
+      devices: migratePositions
+        ? migrateDevicePositions(deduplicatedDevices)
+        : deduplicatedDevices,
+    };
+  });
 
   // Build the output without the legacy 'rack' field
   const { rack: _legacyRack, racks: _inputRacks, ...rest } = data;

@@ -366,9 +366,35 @@ function loadLayout(layoutData: Layout): void {
       }
       seenIds.add(rackId);
 
+      // Deduplicate device IDs and remap container_id references — defence-in-depth (#1363)
+      /* eslint-disable svelte/prefer-svelte-reactivity -- ephemeral validation collections, not reactive state */
+      const seenDeviceIds = new Set<string>();
+      const idRemap = new Map<string, string>();
+      /* eslint-enable svelte/prefer-svelte-reactivity */
+      const devices = r.devices.map((d) => {
+        const originalId = d.id;
+        let nextId = originalId;
+        if (!nextId || seenDeviceIds.has(nextId)) {
+          nextId = generateUniqueDeviceId(seenDeviceIds);
+          if (originalId) {
+            idRemap.set(originalId, nextId);
+          }
+        } else {
+          seenDeviceIds.add(nextId);
+        }
+        const nextContainerId =
+          d.container_id && idRemap.has(d.container_id)
+            ? idRemap.get(d.container_id)!
+            : d.container_id;
+        return nextId === originalId && nextContainerId === d.container_id
+          ? d
+          : { ...d, id: nextId, container_id: nextContainerId };
+      });
+
       return {
         ...r,
         id: rackId,
+        devices,
         position: Number.isFinite(r.position) ? r.position : index,
         view: r.view ?? "front",
         show_rear: r.show_rear ?? true,
@@ -1909,10 +1935,37 @@ function getTargetRack(
  * @param index - Rack index
  * @param updater - Function to update the rack
  */
+/**
+ * Generate a unique device ID that doesn't collide with the given set (#1363)
+ */
+function generateUniqueDeviceId(seen: Set<string>): string {
+  let id = generateId();
+  while (seen.has(id)) id = generateId();
+  seen.add(id);
+  return id;
+}
+
+/**
+ * Dev-mode invariant: warn if a rack contains duplicate device IDs (#1363)
+ */
+function assertUniqueDeviceIds(rack: Rack): void {
+  if (!import.meta.env.DEV) return;
+  const ids = rack.devices.map((d) => d.id);
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (dupes.length > 0) {
+    layoutDebug.state(`Duplicate device IDs in rack "${rack.name}":`, dupes);
+  }
+}
+
 function updateRackAtIndex(index: number, updater: (rack: Rack) => Rack): void {
   layout = {
     ...layout,
-    racks: layout.racks.map((r, i) => (i === index ? updater(r) : r)),
+    racks: layout.racks.map((r, i) => {
+      if (i !== index) return r;
+      const updated = updater(r);
+      assertUniqueDeviceIds(updated);
+      return updated;
+    }),
   };
 }
 
@@ -1976,7 +2029,13 @@ function placeDeviceRaw(device: PlacedDevice): number {
   const target = getTargetRack();
   if (!target) return -1;
 
-  const newDevices = [...target.rack.devices, device];
+  // Guard: regenerate ID if it already exists in this rack (#1363)
+  const existingIds = new Set(target.rack.devices.map((d) => d.id));
+  const safeDevice = existingIds.has(device.id)
+    ? { ...device, id: generateUniqueDeviceId(existingIds) }
+    : device;
+
+  const newDevices = [...target.rack.devices, safeDevice];
   updateRackAtIndex(target.index, (rack) => ({
     ...rack,
     devices: newDevices,
@@ -2298,9 +2357,32 @@ function restoreRackDevicesRaw(devices: PlacedDevice[]): void {
   const target = getTargetRack();
   if (!target) return;
 
+  // Guard: deduplicate IDs in restored device list (#1363)
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- ephemeral validation set, not reactive state
+  const seenIds = new Set<string>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- ephemeral remap, not reactive state
+  const idRemap = new Map<string, string>();
+  const safeDevices = devices
+    .map((d) => {
+      if (seenIds.has(d.id)) {
+        const newId = generateUniqueDeviceId(seenIds);
+        idRemap.set(d.id, newId);
+        return { ...d, id: newId };
+      }
+      seenIds.add(d.id);
+      return d;
+    })
+    .map((d) => {
+      // Second pass: remap container_id references
+      if (d.container_id && idRemap.has(d.container_id)) {
+        return { ...d, container_id: idRemap.get(d.container_id)! };
+      }
+      return d;
+    });
+
   updateRackAtIndex(target.index, (rack) => ({
     ...rack,
-    devices: [...devices],
+    devices: [...safeDevices],
   }));
 }
 

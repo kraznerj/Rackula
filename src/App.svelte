@@ -279,7 +279,8 @@
     // Priority 1: Check for shared layout in URL (highest priority)
     const shareParam = getShareParam();
     if (shareParam) {
-      const sharedLayout = decodeLayout(shareParam);
+      const { layout: sharedLayout, error: shareError } =
+        decodeLayout(shareParam);
       if (sharedLayout) {
         layoutStore.loadLayout(sharedLayout);
         layoutStore.markClean();
@@ -293,7 +294,7 @@
         return; // Don't check autosave or show start screen
       } else {
         clearShareParam();
-        toastStore.showToast("Invalid share link", "error");
+        toastStore.showToast(shareError ?? "Invalid share link", "error");
       }
     }
 
@@ -611,7 +612,12 @@
    * @param e - The caught error (unknown type from catch block)
    * @param notify - Show toast messages (true for manual saves, false for auto-save)
    */
-  function handlePersistenceError(e: unknown, notify = false) {
+  function handlePersistenceError(
+    e: unknown,
+    notify = false,
+    onRetry?: () => void,
+  ) {
+    const action = onRetry ? { label: "Retry", onClick: onRetry } : undefined;
     if (e instanceof PersistenceError) {
       if (
         e.statusCode === undefined ||
@@ -621,16 +627,27 @@
         setApiAvailable(false);
         saveStatus = "offline";
         if (notify)
-          toastStore.showToast("Save failed — backend unavailable", "error");
+          toastStore.showToast(
+            "Save failed — backend unavailable",
+            "error",
+            undefined,
+            action,
+          );
       } else {
         saveStatus = "error";
-        if (notify) toastStore.showToast("Save failed", "error");
+        if (notify)
+          toastStore.showToast("Save failed", "error", undefined, action);
       }
     } else {
       setApiAvailable(false);
       saveStatus = "offline";
       if (notify)
-        toastStore.showToast("Save failed — backend unavailable", "error");
+        toastStore.showToast(
+          "Save failed — backend unavailable",
+          "error",
+          undefined,
+          action,
+        );
     }
   }
 
@@ -665,7 +682,7 @@
     } catch (e) {
       dialogStore.pendingSaveFirst = false;
       console.warn("Manual save failed:", e);
-      handlePersistenceError(e, true);
+      handlePersistenceError(e, true, () => handleSaveToServer());
       // NO auto-fallback to ZIP — per issue spec
     }
   }
@@ -1140,6 +1157,11 @@
 
       // Parse and validate the import (returns DeviceType[])
       const result = parseDeviceLibraryImport(text, existingSlugs);
+
+      if (result.error) {
+        toastStore.showToast(`Import failed: ${result.error}`, "error");
+        return;
+      }
 
       // Add imported devices to library
       for (const deviceType of result.devices) {

@@ -261,7 +261,12 @@ export async function loadSavedLayout(uuid: string): Promise<Layout> {
     uuid,
     yamlContent.length,
   );
-  return parseLayoutYaml(yamlContent);
+  try {
+    return parseLayoutYaml(yamlContent);
+  } catch (error) {
+    log("loadSavedLayout: failed to parse uuid=%s %O", uuid, error);
+    throw new PersistenceError("Layout data is corrupted — could not parse");
+  }
 }
 
 /**

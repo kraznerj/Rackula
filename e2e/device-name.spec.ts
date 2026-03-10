@@ -1,5 +1,5 @@
 import { test, expect } from "./helpers/base-test";
-import { gotoWithRack, dragDeviceToRack } from "./helpers";
+import { gotoWithRack, dragDeviceToRack, PLATFORM_MODIFIER } from "./helpers";
 
 test.describe("Device Custom Names", () => {
   test.beforeEach(async ({ page }) => {
@@ -17,15 +17,11 @@ test.describe("Device Custom Names", () => {
     // Wait for edit panel drawer to open
     await expect(page.locator("aside.drawer-right.open")).toBeVisible();
 
-    // Find and click the display name field to start editing
-    const displayNameSection = page.locator(".display-name-section");
-    await expect(displayNameSection).toBeVisible({ timeout: 10000 });
-
-    // Click on the name display to start editing
-    await displayNameSection.locator(".display-name-display").click();
+    // Click the display name button to start editing
+    await page.locator("button.display-name-display").click();
 
     // Input field should appear
-    const nameInput = displayNameSection.locator(".display-name-input");
+    const nameInput = page.locator("input#device-display-name");
     await expect(nameInput).toBeVisible();
 
     // Clear and type new name
@@ -40,7 +36,7 @@ test.describe("Device Custom Names", () => {
     );
   });
 
-  test.skip("display name persists after save/load", async ({ page }) => {
+  test("display name persists after save/load", async ({ page }) => {
     // Place a device and give it a custom name
     await dragDeviceToRack(page);
     await expect(page.locator(".rack-device").first()).toBeVisible();
@@ -48,11 +44,10 @@ test.describe("Device Custom Names", () => {
 
     // Wait for edit panel to open
     await expect(page.locator("aside.drawer-right.open")).toBeVisible();
-    await expect(page.locator(".display-name-section")).toBeVisible();
 
     // Edit the name
-    await page.locator(".display-name-display").click();
-    const nameInput = page.locator(".display-name-input");
+    await page.locator("button.display-name-display").click();
+    const nameInput = page.locator("input#device-display-name");
     await expect(nameInput).toBeVisible();
     await nameInput.fill("Storage Server");
     await nameInput.press("Enter");
@@ -62,23 +57,30 @@ test.describe("Device Custom Names", () => {
       "Storage Server",
     );
 
-    // Save the layout (Ctrl+S)
+    // Save the layout via keyboard shortcut
     const downloadPromise = page.waitForEvent("download");
-    await page.keyboard.press("Control+s");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+s`);
     const download = await downloadPromise;
-    const downloadPath = await download.path();
-    expect(downloadPath).toBeTruthy();
+
+    // Save to stable test output path
+    const savedPath = test.info().outputPath("device-name-test.Rackula.zip");
+    await download.saveAs(savedPath);
 
     // Reload with a fresh rack
     await gotoWithRack(page);
 
-    // Load the saved file
+    // Load the saved file via keyboard shortcut
     const fileChooserPromise = page.waitForEvent("filechooser");
-    await page.keyboard.press("Control+o");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+o`);
     const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(downloadPath!);
+    await fileChooser.setFiles(savedPath);
 
-    // Wait for load to complete and rack to appear
+    // Wait for success toast to confirm load completed
+    await expect(page.locator(".toast--success")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Wait for device to appear
     await expect(page.locator(".rack-device").first()).toBeVisible({
       timeout: 10000,
     });
@@ -97,7 +99,6 @@ test.describe("Device Custom Names", () => {
 
     // Wait for edit panel to open
     await expect(page.locator("aside.drawer-right.open")).toBeVisible();
-    await expect(page.locator(".display-name-section")).toBeVisible();
 
     // Get the original device type name
     const originalName = await page
@@ -106,8 +107,8 @@ test.describe("Device Custom Names", () => {
       .textContent();
 
     // Edit the name
-    await page.locator(".display-name-display").click();
-    const nameInput = page.locator(".display-name-input");
+    await page.locator("button.display-name-display").click();
+    const nameInput = page.locator("input#device-display-name");
     await expect(nameInput).toBeVisible();
     await nameInput.fill("Custom Name");
     await nameInput.press("Enter");
@@ -148,7 +149,6 @@ test.describe("Device Custom Names", () => {
 
     // Wait for edit panel to open
     await expect(page.locator("aside.drawer-right.open")).toBeVisible();
-    await expect(page.locator(".display-name-section")).toBeVisible();
 
     // Get the original device type name
     const originalName = await page
@@ -157,8 +157,8 @@ test.describe("Device Custom Names", () => {
       .textContent();
 
     // Edit the name to something custom
-    await page.locator(".display-name-display").click();
-    let nameInput = page.locator(".display-name-input");
+    await page.locator("button.display-name-display").click();
+    let nameInput = page.locator("input#device-display-name");
     await expect(nameInput).toBeVisible();
     await nameInput.fill("Custom Name");
     await nameInput.press("Enter");
@@ -169,8 +169,8 @@ test.describe("Device Custom Names", () => {
     );
 
     // Click again and clear the name
-    await page.locator(".display-name-display").click();
-    nameInput = page.locator(".display-name-input");
+    await page.locator("button.display-name-display").click();
+    nameInput = page.locator("input#device-display-name");
     await expect(nameInput).toBeVisible();
     await nameInput.fill("");
     await nameInput.press("Enter");

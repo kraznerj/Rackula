@@ -4,6 +4,7 @@ import {
   MEDIUM_RACK_SHARE,
   SMALL_RACK_SHARE,
   STANDARD_RACK_SHARE,
+  PLATFORM_MODIFIER,
   clickSave,
   dragDeviceToRack,
 } from "./helpers";
@@ -63,8 +64,41 @@ test.describe("Persistence", () => {
     }
   });
 
-  test.skip("load layout from file", async ({ page: _page }) => {
-    // SKIP: File chooser interaction unreliable in E2E tests
+  test("load layout from file restores rack", async ({ page }) => {
+    // Place a device so the saved layout has content
+    await dragDeviceToRack(page);
+    await expect(page.locator(".rack-device").first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    // Save the layout via keyboard shortcut
+    const downloadPromise = page.waitForEvent("download");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+s`);
+    const download = await downloadPromise;
+
+    // Save to stable test output path
+    const savedPath = test.info().outputPath("persistence-load-test.Rackula.zip");
+    await download.saveAs(savedPath);
+
+    // Reload with a fresh rack (no devices)
+    await gotoWithRack(page, MEDIUM_RACK_SHARE);
+    await expect(page.locator(".rack-device")).not.toBeVisible();
+
+    // Load the saved file via keyboard shortcut
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+o`);
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(savedPath);
+
+    // Wait for success toast to confirm load completed
+    await expect(page.locator(".toast--success")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Verify layout is restored with the device
+    await expect(page.locator(".rack-device").first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("session storage preserves work on refresh", async ({ page }) => {

@@ -163,6 +163,28 @@ async function detectZipFormat(zip: JSZipInstance): Promise<ZipFormat> {
     };
   }
 
+  // Look for legacy folder format: folder without UUID containing a .yaml file
+  // e.g., "5123home/5123home.yaml" (pre-#919 archives)
+  const folderYaml = entries.find((e) => {
+    const parts = e.split("/");
+    return (
+      parts.length === 2 &&
+      parts[0] !== "" &&
+      (parts[1]!.endsWith(".yaml") || parts[1]!.endsWith(".yml"))
+    );
+  });
+  if (folderYaml) {
+    const folderName = folderYaml.split("/")[0]!;
+    const hasAssetsFolder = entries.some(
+      (e) => e.startsWith(`${folderName}/assets/`),
+    );
+    return {
+      type: "old-flat",
+      yamlPath: folderYaml,
+      assetsPath: hasAssetsFolder ? `${folderName}/assets/` : undefined,
+    };
+  }
+
   return { type: "invalid" };
 }
 
@@ -487,8 +509,11 @@ async function extractOldFormatZip(
   );
 
   for (const imagePath of imageFiles) {
-    // Normalize path: remove "images/" prefix if present
-    const normalizedPath = imagePath.replace(/^images\//, "");
+    // Normalize path: strip the detected assets prefix (or legacy "images/")
+    const prefix = format.assetsPath ?? "images/";
+    const normalizedPath = imagePath.startsWith(prefix)
+      ? imagePath.substring(prefix.length)
+      : imagePath;
     const parts = normalizedPath.split("/");
 
     // Expected structure: [slug]/[filename].[ext]

@@ -136,7 +136,7 @@
   // Circuit breaker: stops auto-save retries after consecutive failures (#1088)
   // Prevents infinite bounce when health check passes but layout endpoints fail.
   const MAX_SAVE_FAILURES = 3;
-  let _consecutiveSaveFailures = 0;
+  let _consecutiveSaveFailures = $state(0);
 
   // Dialog state - now managed by dialogStore
   // Legacy local aliases for gradual migration
@@ -571,7 +571,10 @@
     if (shouldShowCleanupPrompt("save")) {
       return;
     }
-    if (isApiAvailable()) {
+    // Try server save if we've ever had API connectivity — even when currently
+    // offline, a manual Ctrl+S should retry the server (closes circuit breaker
+    // on success). Only fall back to ZIP when no API has ever been detected.
+    if (isApiAvailable() || hasEverConnectedToApi()) {
       handleSaveToServer();
     } else {
       handleSaveAsArchive();
@@ -686,6 +689,7 @@
       const newId = await saveLayoutToServer(snapshot);
       _currentLayoutId = newId;
       _consecutiveSaveFailures = 0; // Reset circuit breaker on success
+      setApiAvailable(true); // Re-enable auto-save after successful manual retry
       saveStatus = "saved";
       layoutStore.markClean();
       clearSession();
@@ -1592,7 +1596,6 @@
       const healthy = await checkApiHealth();
       if (healthy) {
         persistenceDebug.health("API health check passed, marking available");
-        _consecutiveSaveFailures = 0; // Reset circuit breaker on recovery
         setApiAvailable(true);
         saveStatus = "idle";
       } else {

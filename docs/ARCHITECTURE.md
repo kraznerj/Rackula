@@ -2,14 +2,14 @@
 
 ## Overview
 
-Rackula is a browser-based rack layout designer for homelabbers. It runs entirely client-side with no backend required, making it lightweight, portable, and privacy-friendly.
+Rackula is a browser-based rack layout designer for homelabbers. It runs client-side with an optional persistence API for self-hosted deployments, making it lightweight, portable, and privacy-friendly.
 
 ### Design Principles
 
 - **ADHD-friendly**: Minimal decision points, focused workflows
-- **Lightweight**: Static frontend, no backend dependencies
+- **Lightweight**: Static frontend, optional backend for persistence
 - **Portable**: Self-contained `.Rackula.zip` archives with embedded images
-- **Single-rack focus**: Intentional simplicity over multi-rack complexity
+- **Multi-rack**: Multiple racks per layout with independent configuration
 - **Offline-ready**: Full functionality without network access
 
 ## Technology Stack
@@ -52,7 +52,7 @@ docs/                   # Documentation (you are here)
 2. Create store if state needed in `src/lib/stores/`
 3. Create component in `src/lib/components/`
 4. Add tests in `src/tests/`
-5. Update `docs/reference/SPEC.md` if user-facing
+5. Update relevant docs if user-facing
 
 ### Modifying Device Behavior
 
@@ -88,17 +88,6 @@ docs/                   # Documentation (you are here)
 | Brand colors    | `docs/reference/BRAND.md`     |
 
 ## Key Design Decisions
-
-### Single-Rack Mode
-
-Rackula intentionally supports only one rack per layout. This simplifies:
-
-- State management (no rack selection/switching)
-- Collision detection (single coordinate space)
-- Export workflows (one rack = one image)
-- User mental model (focus on one thing)
-
-Multi-rack support is explicitly out of scope.
 
 ### Svelte 5 Runes (Not Stores)
 
@@ -185,7 +174,7 @@ No legacy support or migration code. Features are implemented as if they're the 
 
 | Document                            | Purpose                               |
 | ----------------------------------- | ------------------------------------- |
-| `docs/reference/SPEC.md`            | Authoritative technical specification |
+| `docs/reference/SPEC.md`            | Technical overview and design principles |
 | `docs/reference/BRAND.md`           | Design system quick reference         |
 | `docs/reference/GITHUB-WORKFLOW.md` | GitHub Issues workflow                |
 | `docs/guides/TESTING.md`            | Testing patterns and commands         |
@@ -205,4 +194,4 @@ Active design documents for features in development:
 
 - `CLAUDE.md` - Claude Code development instructions
 - `CONTRIBUTING.md` - Contribution guidelines
-- `docs/reference/SPEC.md` - Complete technical specification
+- `docs/reference/SPEC.md` - Technical overview and design principles

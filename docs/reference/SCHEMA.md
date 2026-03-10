@@ -17,7 +17,7 @@ This document is the authoritative reference for the Rackula v1.0.0 data schema.
 - **Lenient parsing** - Unknown fields are preserved (`.passthrough()` in Zod)
 - **Component arrays** - Support for interfaces, power ports, device bays, etc.
 
-**File Format:** YAML inside `.Rackula.zip` archives. See [SPEC.md](./SPEC.md) Section 4 for archive structure.
+**File Format:** YAML inside `.Rackula.zip` archives. See [SPEC.md](./SPEC.md) for archive structure.
 
 ---
 
@@ -574,7 +574,7 @@ device_types:
 
 ## Related Documentation
 
-- [SPEC.md](./SPEC.md) - Complete technical specification
+- [SPEC.md](./SPEC.md) - Technical overview and design principles
 - [ARCHITECTURE.md](../ARCHITECTURE.md) - Codebase overview
 - [Type definitions](../../src/lib/types/index.ts) - TypeScript interfaces
 - [Zod schemas](../../src/lib/schemas/index.ts) - Runtime validation schemas

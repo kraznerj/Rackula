@@ -71,7 +71,7 @@ docs/
 │   ├── TESTING.md           → Testing patterns and commands
 │   └── ACCESSIBILITY.md     → A11y compliance checklist
 ├── reference/
-│   ├── SPEC.md              → Technical specification (authoritative)
+│   ├── SPEC.md              → Technical overview and design principles
 │   ├── BRAND.md             → Design system quick reference
 │   └── GITHUB-WORKFLOW.md   → GitHub Issues workflow
 └── planning/
@@ -79,7 +79,7 @@ docs/
 ```
 
 **Start here:** `docs/ARCHITECTURE.md` for codebase overview.
-**Reference:** `docs/reference/SPEC.md` for complete technical specification.
+**Reference:** `docs/reference/SPEC.md` for technical overview and design principles.
 
 ## GitHub Issues Workflow
 

@@ -129,6 +129,6 @@ npm run lint         # ESLint check
 ## Key Files
 
 - `docs/ARCHITECTURE.md` - Codebase overview (start here)
-- `docs/reference/SPEC.md` - Technical specification (authoritative)
+- `docs/reference/SPEC.md` - Technical overview and design principles
 - `src/tests/factories.ts` - Test data factories
 - `src/lib/styles/tokens.css` - Design tokens

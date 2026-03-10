@@ -51,7 +51,7 @@ docs/                   # Documentation (you are here)
 2. Create store if state needed in `src/lib/stores/`
 3. Create component in `src/lib/components/`
 4. Add tests in `src/tests/`
-5. Update `docs/reference/SPEC.md` if user-facing
+5. Update relevant docs if user-facing
 
 ### Modifying Device Behavior
 
@@ -184,7 +184,7 @@ No legacy support or migration code. Features are implemented as if they're the 
 
 | Document                            | Purpose                               |
 | ----------------------------------- | ------------------------------------- |
-| `docs/reference/SPEC.md`            | Authoritative technical specification |
+| `docs/reference/SPEC.md`            | Technical overview and design principles |
 | `docs/reference/BRAND.md`           | Design system quick reference         |
 | `docs/reference/GITHUB-WORKFLOW.md` | GitHub Issues workflow                |
 | `docs/guides/TESTING.md`            | Testing patterns and commands         |
@@ -194,4 +194,4 @@ No legacy support or migration code. Features are implemented as if they're the 
 
 - `CLAUDE.md` - Claude Code development instructions
 - `CONTRIBUTING.md` - Contribution guidelines
-- `docs/reference/SPEC.md` - Complete technical specification
+- `docs/reference/SPEC.md` - Technical overview and design principles

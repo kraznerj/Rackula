@@ -107,7 +107,7 @@ npm run test:coverage
 Key documentation for contributors:
 
 - **Architecture overview:** `docs/ARCHITECTURE.md` - Start here for codebase orientation
-- **Technical specification:** `docs/reference/SPEC.md` - Authoritative reference
+- **Technical overview:** `docs/reference/SPEC.md` - Technical overview and design principles
 - **Testing guide:** `docs/guides/TESTING.md` - Testing patterns and best practices
 - **AI instructions:** `CLAUDE.md` - Claude Code development workflow
 

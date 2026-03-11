@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-03-10
+
+### Added
+
+- Multi-rack share URL support with v2 schema (#1207, PR #1417)
+- Session save flush on pagehide/beforeunload to prevent data loss (#1404, PR #1413)
+- Reverse proxy, access control, and deployment scenario documentation (#1107, PR #1411)
+
+### Fixed
+
+- Cross-browser drag tooltip positioning for Safari 26 and Firefox 148 (#1443, #1444, PR #1446)
+- Circuit breaker reactivity and health-check reset for persistence auto-save (#1088, PR #1416, PR #1434)
+- Surface user-facing feedback for previously silent failures (#1389-#1392, PR #1407)
+- Keyboard viewport input type coverage using allowlist instead of exclusion list (#1115, PR #1408)
+- Pin Bun 1.3.10 in Dockerfile and regenerate lockfile
+
+### Technical
+
+- Migrate E2E selectors to data-testid (#1228, PR #1435)
+- Repair migration E2E tests and archive format detection (#1401, PR #1437)
+- Rewrite shelf-category E2E tests for accordion palette (#1400, PR #1406)
+- Unskip device-name undo/redo and cross-rack metadata E2E tests (#1405, PR #1436)
+- Eliminate waitForTimeout in E2E tests (#1224, PR #1414)
+- Update stale E2E selectors and save filename assertions (#1261, #1263, PR #1412, PR #1415)
+- Triage and fix disabled E2E tests (#1226, PR #1439)
+- E2E testing architecture research spike (#1393, PR #1424)
+- Trim SPEC.md from 2,482 to 184 lines (#1399)
+- Dependency updates: Svelte 5.53.9, Hono 4.12.7, DOMPurify 3.3.2, simple-icons 16.11.0
+
 ## [0.9.0] - 2026-03-05
 
 ### Added

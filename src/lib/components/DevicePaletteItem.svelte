@@ -96,6 +96,43 @@
     }
   }
 
+  // Tracks whether this instance owns the current drag session.
+  // Prevents unmounting non-dragging instances from clearing shared drag state.
+  let ownsDrag = false;
+
+  // Document-level dragover listener for tooltip position tracking.
+  // Firefox reports 0,0 for clientX/clientY on source-element `drag` events,
+  // so we use `dragover` on the document which provides correct coordinates
+  // in all browsers. Registered in capture phase so stopPropagation() in
+  // descendant handlers cannot prevent it from firing.
+  function handleDocumentDragOver(event: DragEvent) {
+    if (event.clientX !== 0 || event.clientY !== 0) {
+      updateDragTooltipPosition(event.clientX, event.clientY);
+    }
+  }
+
+  // Shared teardown for all drag cleanup paths (dragend, drop fallback, unmount).
+  // Only clears shared state if this instance owns the active drag.
+  function teardownDrag() {
+    document.removeEventListener("dragover", handleDocumentDragOver, true);
+    document.removeEventListener("drop", handleDocumentDrop, true);
+    if (ownsDrag) {
+      ownsDrag = false;
+      setCurrentDragData(null);
+      isDragging = false;
+      hideDragTooltip();
+    }
+  }
+
+  // Fallback cleanup: Firefox sometimes fails to fire dragend during rapid
+  // dragging. A capture-phase document drop listener ensures cleanup always runs.
+  function handleDocumentDrop() {
+    teardownDrag();
+  }
+
+  // Clean up document listeners if component unmounts mid-drag
+  $effect(() => teardownDrag);
+
   function handleDragStart(event: DragEvent) {
     // Prevent dragging incompatible devices
     if (!isCompatible) {
@@ -117,24 +154,21 @@
 
     // Set shared drag state for dragover (browsers block getData during dragover)
     setCurrentDragData(dragData);
+    ownsDrag = true;
     isDragging = true;
 
     // Show drag tooltip at initial cursor position
     showDragTooltip(device, event.clientX, event.clientY);
-  }
 
-  function handleDrag(event: DragEvent) {
-    // Update tooltip position during drag
-    // Note: Some browsers report 0,0 for clientX/clientY at drag end
-    if (event.clientX !== 0 || event.clientY !== 0) {
-      updateDragTooltipPosition(event.clientX, event.clientY);
-    }
+    // Track tooltip position via document dragover (capture phase so
+    // stopPropagation in descendant handlers cannot block it)
+    document.addEventListener("dragover", handleDocumentDragOver, true);
+    // Fallback: capture-phase drop listener ensures cleanup if dragend doesn't fire
+    document.addEventListener("drop", handleDocumentDrop, true);
   }
 
   function handleDragEnd() {
-    setCurrentDragData(null);
-    isDragging = false;
-    hideDragTooltip();
+    teardownDrag();
   }
 </script>
 
@@ -153,7 +187,6 @@
   onclick={handleClick}
   onkeydown={handleKeyDown}
   ondragstart={handleDragStart}
-  ondrag={handleDrag}
   ondragend={handleDragEnd}
   aria-label={ariaDescription}
 >
@@ -222,7 +255,6 @@
     /* Safari drag support: prevent text selection during drag */
     -webkit-user-select: none;
     user-select: none;
-    -webkit-user-drag: element;
     transition:
       transform var(--duration-fast) var(--ease-out),
       box-shadow var(--duration-fast) var(--ease-out),

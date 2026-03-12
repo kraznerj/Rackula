@@ -10,33 +10,16 @@
   import { PaneGroup, Pane, PaneResizer } from "paneforge";
   import DevicePalette from "$lib/components/DevicePalette.svelte";
   import EditPanel from "$lib/components/EditPanel.svelte";
-  import { NewRackWizard, type CreateRackData } from "$lib/components/wizard";
-  import AddDeviceForm from "$lib/components/AddDeviceForm.svelte";
-  import ImportFromNetBoxDialog from "$lib/components/ImportFromNetBoxDialog.svelte";
-  import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
-  import ConfirmReplaceDialog from "$lib/components/ConfirmReplaceDialog.svelte";
-  import CleanupDialog from "$lib/components/CleanupDialog.svelte";
-  import CleanupPromptDialog from "$lib/components/CleanupPromptDialog.svelte";
   import ToastContainer from "$lib/components/ToastContainer.svelte";
   import PortTooltip from "$lib/components/PortTooltip.svelte";
   import DragTooltip from "$lib/components/DragTooltip.svelte";
   import KeyboardHandler from "$lib/components/KeyboardHandler.svelte";
-  import ExportDialog from "$lib/components/ExportDialog.svelte";
-  import ShareDialog from "$lib/components/ShareDialog.svelte";
-  import LayoutYamlPanel from "$lib/components/LayoutYamlPanel.svelte";
-  import Dialog from "$lib/components/Dialog.svelte";
-  import HelpPanel from "$lib/components/HelpPanel.svelte";
-  import BottomSheet from "$lib/components/BottomSheet.svelte";
-  import DeviceDetails from "$lib/components/DeviceDetails.svelte";
-  import MobileFileSheet from "$lib/components/MobileFileSheet.svelte";
-  import MobileBottomNav from "$lib/components/mobile/MobileBottomNav.svelte";
   import MobileHistoryControls from "$lib/components/mobile/MobileHistoryControls.svelte";
   import RackIndicator from "$lib/components/mobile/RackIndicator.svelte";
-  import RackEditSheet from "$lib/components/RackEditSheet.svelte";
-  import MobileViewSheet from "$lib/components/mobile/MobileViewSheet.svelte";
   import SidebarTabs from "$lib/components/SidebarTabs.svelte";
   import RackList from "$lib/components/RackList.svelte";
-  import LoadDialog from "$lib/components/LoadDialog.svelte";
+  import PersistenceEffects from "$lib/components/PersistenceEffects.svelte";
+  import DialogOrchestrator from "$lib/components/DialogOrchestrator.svelte";
   import StartScreen, {
     type StartScreenCloseOptions,
   } from "$lib/components/StartScreen.svelte";
@@ -44,11 +27,8 @@
     getShareParam,
     clearShareParam,
     decodeLayout,
-    generateShareUrl,
   } from "$lib/utils/share";
-  import { generateQRCode, canFitInQR } from "$lib/utils/qrcode";
   import {
-    saveSession,
     loadSessionWithTimestamp,
     clearSession,
     isServerNewer,
@@ -57,54 +37,36 @@
   import { getSelectionStore } from "$lib/stores/selection.svelte";
   import { getUIStore } from "$lib/stores/ui.svelte";
   import { getCanvasStore } from "$lib/stores/canvas.svelte";
-  import { DRAWER_WIDTH } from "$lib/constants/layout";
   import { getToastStore } from "$lib/stores/toast.svelte";
-  import { getImageStore } from "$lib/stores/images.svelte";
   import { getViewportStore } from "$lib/utils/viewport.svelte";
-  import { setupKeyboardViewportAdaptation } from "$lib/utils/keyboard-viewport";
   import { getPlacementStore } from "$lib/stores/placement.svelte";
   import { createKonamiDetector } from "$lib/utils/konami";
-  import type { ImageData } from "$lib/types/images";
-  import { downloadArchive, generateArchiveFilename } from "$lib/utils/archive";
-  import {
-    generateExportSVG,
-    exportAsSVG,
-    exportAsPNG,
-    exportAsJPEG,
-    exportAsPDF,
-    exportToCSV,
-    downloadBlob,
-    generateExportFilename,
-  } from "$lib/utils/export";
-  import type {
-    DisplayMode,
-    ExportOptions,
-    Layout,
-    RackWidth,
-  } from "$lib/types";
-  import type { ImportResult } from "$lib/utils/netbox-import";
-  import { parseDeviceLibraryImport } from "$lib/utils/import";
   import { analytics } from "$lib/utils/analytics";
-  import { hapticTap } from "$lib/utils/haptics";
-  import { debug, persistenceDebug } from "$lib/utils/debug";
-  import { loadFromFile } from "$lib/utils/load-pipeline";
+  import { persistenceDebug } from "$lib/utils/debug";
   import { dialogStore } from "$lib/stores/dialogs.svelte";
+  import { generateShareUrl } from "$lib/utils/share";
+  import { generateQRCode, canFitInQR } from "$lib/utils/qrcode";
+  import { DRAWER_WIDTH } from "$lib/constants/layout";
   import { Tooltip } from "bits-ui";
   import {
-    isApiAvailable,
     setApiAvailable,
-    getApiAvailableState,
     initializePersistence,
     hasEverConnectedToApi,
   } from "$lib/stores/persistence.svelte";
   import {
-    saveLayoutToServer,
-    checkApiHealth,
     listSavedLayouts,
     loadSavedLayout,
-    type SaveStatus as SaveStatusType,
-    PersistenceError,
   } from "$lib/utils/persistence-api";
+  import {
+    getSaveStatus,
+    setSaveStatus,
+    maybeSave,
+    maybeSaveAs,
+    maybeExport,
+    handleLoad,
+    handleShare,
+    handleFitAll,
+  } from "$lib/utils/persistence-manager.svelte";
 
   // Sidebar size configuration (in pixels)
   interface Props {
@@ -124,52 +86,11 @@
   const uiStore = getUIStore();
   const canvasStore = getCanvasStore();
   const toastStore = getToastStore();
-  const imageStore = getImageStore();
   const viewportStore = getViewportStore();
   const placementStore = getPlacementStore();
 
-  // Persistence state
-  // Diagnostic: tracks current layout UUID (assigned but not actively read - for debugging)
-  let _currentLayoutId = $state<string | undefined>(undefined);
-  let saveStatus = $state<SaveStatusType>("idle");
-
-  // Circuit breaker: stops auto-save retries after consecutive failures (#1088)
-  // Prevents infinite bounce when health check passes but layout endpoints fail.
-  const MAX_SAVE_FAILURES = 3;
-  let _consecutiveSaveFailures = $state(0);
-
-  // Dialog state - now managed by dialogStore
-  // Legacy local aliases for gradual migration
-  let newRackFormOpen = $derived(dialogStore.isOpen("newRack"));
-  let addDeviceFormOpen = $derived(dialogStore.isOpen("addDevice"));
-  let confirmDeleteOpen = $derived(dialogStore.isOpen("confirmDelete"));
-  let exportDialogOpen = $derived(dialogStore.isOpen("export"));
-  let shareDialogOpen = $derived(dialogStore.isOpen("share"));
-  let yamlEditorDialogOpen = $derived(dialogStore.isOpen("yamlEditor"));
-  let helpPanelOpen = $derived(dialogStore.isOpen("help"));
-  let importFromNetBoxOpen = $derived(dialogStore.isOpen("importNetBox"));
-  let showReplaceDialog = $derived(dialogStore.isOpen("confirmReplace"));
-  let cleanupDialogOpen = $derived(dialogStore.isOpen("cleanupDialog"));
-  let cleanupPromptOpen = $derived(dialogStore.isOpen("cleanupPrompt"));
-  let cleanupPromptOperation = $derived(dialogStore.pendingCleanupOperation);
-  let cleanupReviewPendingOperation = $state<
-    "save" | "saveAs" | "export" | null
-  >(null);
-
-  // Mobile bottom sheet state - managed by dialogStore
-  let bottomSheetOpen = $derived(dialogStore.isSheetOpen("deviceDetails"));
-  let fileSheetOpen = $derived(dialogStore.isSheetOpen("fileActions"));
-  let deviceLibrarySheetOpen = $derived(
-    dialogStore.isSheetOpen("deviceLibrary"),
-  );
-  let yamlEditorSheetOpen = $derived(dialogStore.isSheetOpen("yamlEditor"));
-  let rackEditSheetOpen = $derived(dialogStore.isSheetOpen("rackEdit"));
-  let viewSheetOpen = $derived(dialogStore.isSheetOpen("view"));
-
-  // Aliases to dialogStore properties for template access
-  let deleteTarget = $derived(dialogStore.deleteTarget);
-  let selectedDeviceForSheet = $derived(dialogStore.selectedDeviceIndex);
-  let exportQrCodeDataUrl = $derived(dialogStore.exportQrCodeDataUrl);
+  // Persistence state — delegated to persistence-manager module
+  let saveStatus = $derived(getSaveStatus());
 
   // Sidebar width: read once from the UI store.
   // This is intentionally NOT reactive because changes to sidebarWidth are driven
@@ -179,9 +100,6 @@
   // an initial width to seed the layout; subsequent updates use the store directly.
   const initialSidebarWidthPx =
     uiStore.sidebarWidth ?? untrack(() => sidePanelSizeDefault);
-
-  // Device library import file input ref
-  let deviceImportInputRef = $state<HTMLInputElement | null>(null);
 
   // Safe viewport width: use viewportStore if available, else fallback to reasonable default
   // Guards against SSR/test environments where window may not exist
@@ -228,14 +146,6 @@
     activatePartyMode();
   });
 
-  // Mobile keyboard adaptation: keeps bottom UI above virtual keyboards and
-  // updates --keyboard-height for CSS consumers.
-  onMount(() =>
-    setupKeyboardViewportAdaptation({
-      isMobile: () => viewportStore.isMobile,
-    }),
-  );
-
   function activatePartyMode() {
     // Check for reduced motion preference
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -274,9 +184,9 @@
       );
       setApiAvailable(false);
       if (hasEverConnectedToApi()) {
-        saveStatus = "offline";
+        setSaveStatus("offline");
       } else {
-        saveStatus = "disabled";
+        setSaveStatus("disabled");
       }
       return false;
     });
@@ -317,7 +227,7 @@
 
     const apiAvailable = await persistenceInitPromise;
     if (!apiAvailable) {
-      saveStatus = hasEverConnectedToApi() ? "offline" : "disabled";
+      setSaveStatus(hasEverConnectedToApi() ? "offline" : "disabled");
     }
 
     // Priority 3: When API and local session are both available,
@@ -379,9 +289,9 @@
         // Treat server data failures as offline and fall back gracefully.
         setApiAvailable(false);
         if (hasEverConnectedToApi()) {
-          saveStatus = "offline";
+          setSaveStatus("offline");
         } else {
-          saveStatus = "disabled";
+          setSaveStatus("disabled");
         }
       }
     }
@@ -420,9 +330,10 @@
     });
   }
 
-  // Toolbar event handlers
+  // --- Thin wrappers for Toolbar/Canvas/KeyboardHandler callbacks ---
+  // These delegate to dialogStore; the actual dialog logic lives in DialogOrchestrator.
+
   function handleNewRack() {
-    // Multi-rack mode: always open new rack form (no replace dialog)
     if (!layoutStore.canAddRack) {
       toastStore.showToast("Maximum number of racks reached", "warning");
       return;
@@ -430,528 +341,8 @@
     dialogStore.open("newRack");
   }
 
-  function handleNewRackCreate(data: CreateRackData) {
-    if (data.layoutType === "bayed" && data.bayCount) {
-      // Create bayed rack group
-      const result = layoutStore.addBayedRackGroup(
-        data.name,
-        data.bayCount,
-        data.height,
-        data.width,
-      );
-      if (!result) {
-        toastStore.showToast(
-          "Could not create Bayed Rack: insufficient capacity",
-          "error",
-        );
-        return;
-      }
-    } else {
-      // Create single column rack
-      layoutStore.addRack(data.name, data.height, data.width);
-    }
-    dialogStore.close();
-    // Auto-fit after creating new rack so it's visible
-    requestAnimationFrame(() => handleFitAll());
-  }
-
-  function handleNewRackCancel() {
-    dialogStore.close();
-  }
-
-  // Replace dialog handlers (single-rack mode)
-  async function handleSaveFirst() {
-    dialogStore.close();
-    dialogStore.pendingSaveFirst = true;
-    if (isApiAvailable()) {
-      await handleSaveToServer();
-    } else {
-      await handleSaveAsArchive();
-    }
-  }
-
-  function handleReplace() {
-    dialogStore.close();
-    // Clear autosaved session when explicitly creating new rack
-    clearSession();
-    resetAndOpenNewRack();
-  }
-
-  function handleCancelReplace() {
-    dialogStore.close();
-  }
-
-  /**
-   * Check if we should show the cleanup prompt before save/export
-   * @param operation - "save", "saveAs", or "export"
-   * @returns true if we should proceed with the operation, false if we showed the prompt
-   */
-  function shouldShowCleanupPrompt(
-    operation: "save" | "saveAs" | "export",
-  ): boolean {
-    // Check if prompt is enabled
-    if (!uiStore.promptCleanupOnSave) {
-      return false;
-    }
-
-    // Check if there are unused custom device types
-    const unusedTypes = layoutStore.getUnusedCustomDeviceTypes();
-    if (unusedTypes.length === 0) {
-      return false;
-    }
-
-    // Show the cleanup prompt
-    dialogStore.pendingCleanupOperation = operation;
-    dialogStore.open("cleanupPrompt");
-    return true;
-  }
-
-  /**
-   * Get count of unused custom device types
-   */
-  function getUnusedCustomTypeCount(): number {
-    return layoutStore.getUnusedCustomDeviceTypes().length;
-  }
-
-  /**
-   * Handle "Review & Clean Up" button in cleanup prompt
-   * Opens bulk cleanup workflow before continuing with pending operation.
-   */
-  function handleCleanupReview() {
-    const pendingOp = dialogStore.pendingCleanupOperation;
-    cleanupReviewPendingOperation = pendingOp;
-    dialogStore.close();
-    dialogStore.open("cleanupDialog");
-  }
-
-  /**
-   * Handle "Keep All" button in cleanup prompt
-   * Proceeds with the pending operation without cleanup
-   */
-  function handleCleanupKeepAll() {
-    const pendingOp = dialogStore.pendingCleanupOperation;
-    cleanupReviewPendingOperation = null;
-    dialogStore.close();
-    if (pendingOp === "save") {
-      if (isApiAvailable()) {
-        handleSaveToServer();
-      } else {
-        handleSaveAsArchive();
-      }
-    } else if (pendingOp === "saveAs") {
-      handleSaveAsArchive();
-    } else if (pendingOp === "export") {
-      handleExport();
-    }
-  }
-
-  /**
-   * Handle "Cancel" button in cleanup prompt
-   * Aborts the pending operation
-   */
-  function handleCleanupCancel() {
-    cleanupReviewPendingOperation = null;
-    dialogStore.close();
-  }
-
-  /**
-   * Handle "Don't ask again" checkbox
-   * Disables the cleanup prompt setting
-   */
-  function handleCleanupDontAskAgain() {
-    uiStore.setPromptCleanupOnSave(false);
-  }
-
-  /**
-   * Entry point for save operation triggered by Ctrl+S or menu
-   * Routes to server save (when API available) or ZIP download
-   * Checks for unused custom types and shows prompt if needed
-   */
-  function maybeSave() {
-    if (shouldShowCleanupPrompt("save")) {
-      return;
-    }
-    // Try server save if we've ever had API connectivity — even when currently
-    // offline, a manual Ctrl+S should retry the server (closes circuit breaker
-    // on success). Only fall back to ZIP when no API has ever been detected.
-    if (isApiAvailable() || hasEverConnectedToApi()) {
-      handleSaveToServer();
-    } else {
-      handleSaveAsArchive();
-    }
-  }
-
-  /**
-   * Entry point for "Save As" operation triggered by Ctrl+Shift+S or menu
-   * Always downloads ZIP archive regardless of API availability
-   */
-  function maybeSaveAs() {
-    if (shouldShowCleanupPrompt("saveAs")) {
-      return;
-    }
-    handleSaveAsArchive();
-  }
-
-  /**
-   * Entry point for export operation triggered by Ctrl+E or menu
-   * Checks for unused custom types and shows prompt if needed
-   */
-  function maybeExport() {
-    // If cleanup prompt should be shown, don't proceed with export yet
-    if (shouldShowCleanupPrompt("export")) {
-      return;
-    }
-    handleExport();
-  }
-
-  /**
-   * Reset the layout, clean up orphaned images, and open the new rack dialog.
-   * Shared by handleReplace, handleSaveToServer, and handleSaveAsArchive.
-   */
-  function resetAndOpenNewRack() {
-    layoutStore.resetLayout();
-    const usedSlugs = layoutStore.getUsedDeviceTypeSlugs();
-    imageStore.cleanupOrphanedImages(usedSlugs);
-    dialogStore.open("newRack");
-  }
-
-  /**
-   * Mark API as unavailable and open circuit breaker after repeated failures.
-   * Shared by both PersistenceError and unknown error branches.
-   */
-  function handleSaveFailure(
-    notify: boolean,
-    action?: { label: string; onClick: () => void },
-  ) {
-    _consecutiveSaveFailures++;
-    setApiAvailable(false);
-    saveStatus = "offline";
-    if (_consecutiveSaveFailures >= MAX_SAVE_FAILURES) {
-      persistenceDebug.api(
-        "circuit breaker open after %d consecutive failures — auto-save paused",
-        _consecutiveSaveFailures,
-      );
-      toastStore.showToast(
-        "Server save unavailable — working offline. Use Ctrl+S to retry.",
-        "warning",
-      );
-    } else if (notify) {
-      toastStore.showToast(
-        "Save failed — backend unavailable",
-        "error",
-        undefined,
-        action,
-      );
-    }
-  }
-
-  /**
-   * Classify a persistence error and update saveStatus / API availability.
-   * @param e - The caught error (unknown type from catch block)
-   * @param notify - Show toast messages (true for manual saves, false for auto-save)
-   */
-  function handlePersistenceError(
-    e: unknown,
-    notify = false,
-    onRetry?: () => void,
-  ) {
-    const action = onRetry ? { label: "Retry", onClick: onRetry } : undefined;
-    if (e instanceof PersistenceError) {
-      if (
-        e.statusCode === undefined ||
-        e.statusCode === 404 ||
-        (typeof e.statusCode === "number" && e.statusCode >= 500)
-      ) {
-        handleSaveFailure(notify, action);
-      } else {
-        saveStatus = "error";
-        if (notify)
-          toastStore.showToast("Save failed", "error", undefined, action);
-      }
-    } else {
-      handleSaveFailure(notify, action);
-    }
-  }
-
-  /**
-   * Save to backend API (immediate, no debounce).
-   * Cancels pending auto-save to avoid duplicate writes.
-   */
-  async function handleSaveToServer() {
-    try {
-      saveStatus = "saving";
-      // Cancel pending auto-save to avoid duplicate
-      if (serverSaveTimer) {
-        clearTimeout(serverSaveTimer);
-        serverSaveTimer = null;
-      }
-      const snapshot = structuredClone($state.snapshot(layoutStore.layout));
-      const newId = await saveLayoutToServer(snapshot);
-      _currentLayoutId = newId;
-      _consecutiveSaveFailures = 0; // Reset circuit breaker on success
-      setApiAvailable(true); // Re-enable auto-save after successful manual retry
-      saveStatus = "saved";
-      layoutStore.markClean();
-      clearSession();
-      // No toast — SaveStatus indicator provides feedback
-
-      // Track save event (total devices across all racks)
-      analytics.trackSave(layoutStore.totalDeviceCount);
-
-      // After save, if pendingSaveFirst, reset and open new rack form
-      if (dialogStore.pendingSaveFirst) {
-        dialogStore.pendingSaveFirst = false;
-        resetAndOpenNewRack();
-      }
-    } catch (e) {
-      dialogStore.pendingSaveFirst = false;
-      console.warn("Manual save failed:", e);
-      handlePersistenceError(e, true, () => handleSaveToServer());
-      // NO auto-fallback to ZIP — per issue spec
-    }
-  }
-
-  /**
-   * Download layout as ZIP archive.
-   * Used for "Save As" (always) and for "Save" when no API is available.
-   */
-  async function handleSaveAsArchive() {
-    try {
-      // Get user images (exclude bundled images) for archive
-      const images = imageStore.getUserImages();
-
-      // Get the filename for the toast message
-      const filename = generateArchiveFilename(layoutStore.layout);
-
-      // Save as folder archive (.Rackula.zip)
-      await downloadArchive(layoutStore.layout, images);
-      layoutStore.markClean();
-      // Clear autosaved session when explicitly saving
-      clearSession();
-      toastStore.showToast(`Saved ${filename}`, "success", 3000);
-
-      // Track save event (total devices across all racks)
-      analytics.trackSave(layoutStore.totalDeviceCount);
-
-      // After save, if pendingSaveFirst, reset and open new rack form
-      if (dialogStore.pendingSaveFirst) {
-        dialogStore.pendingSaveFirst = false;
-        resetAndOpenNewRack();
-      }
-    } catch (error) {
-      // User cancelled native save dialog — not an error, but clear pending state
-      if (error instanceof DOMException && error.name === "AbortError") {
-        dialogStore.pendingSaveFirst = false;
-        return;
-      }
-      dialogStore.pendingSaveFirst = false;
-      console.error("Failed to save layout:", error);
-      toastStore.showToast(
-        error instanceof Error ? error.message : "Failed to save layout",
-        "error",
-      );
-    }
-  }
-
-  async function handleLoad() {
-    if (isApiAvailable()) {
-      dialogStore.open("load");
-    } else {
-      await loadFromFile();
-    }
-  }
-
-  async function handleExport() {
-    if (!layoutStore.hasRack) {
-      toastStore.showToast("No racks to export", "warning");
-      return;
-    }
-
-    // Generate QR code for the share URL (for optional embedding in export)
-    try {
-      const shareUrl = generateShareUrl(layoutStore.layout);
-      if (canFitInQR(shareUrl)) {
-        dialogStore.exportQrCodeDataUrl = await generateQRCode(shareUrl, {
-          width: 444,
-        });
-      } else {
-        // Layout too large for QR code
-        dialogStore.exportQrCodeDataUrl = undefined;
-      }
-    } catch {
-      // If QR generation fails, continue without it
-      dialogStore.exportQrCodeDataUrl = undefined;
-    }
-
-    dialogStore.open("export");
-  }
-
-  async function handleExportSubmit(options: ExportOptions) {
-    dialogStore.close();
-
-    try {
-      // Filter racks based on user selection, or use all if none selected
-      const racksToExport = options.selectedRackIds?.length
-        ? layoutStore.racks.filter((r) =>
-            options.selectedRackIds!.includes(r.id),
-          )
-        : layoutStore.racks;
-
-      if (racksToExport.length === 0) {
-        toastStore.showToast("No rack to export", "warning");
-        return;
-      }
-
-      // Add current display mode to export options
-      const exportOptions = {
-        ...options,
-        displayMode: uiStore.displayMode,
-      };
-
-      // Generate the SVG with images if in image mode
-      const images = imageStore.getAllImages();
-      const svg = generateExportSVG(
-        racksToExport,
-        layoutStore.device_types,
-        exportOptions,
-        images,
-        layoutStore.rack_groups,
-      );
-
-      // Export based on selected format
-      const exportViewOrDefault = options.exportView ?? "both";
-      if (options.format === "svg") {
-        const svgString = exportAsSVG(svg);
-        const blob = new Blob([svgString], { type: "image/svg+xml" });
-        const filename = generateExportFilename(
-          layoutStore.layout.name,
-          exportViewOrDefault,
-          options.format,
-        );
-        downloadBlob(blob, filename);
-        toastStore.showToast("SVG exported successfully", "success");
-        analytics.trackExportImage("svg", exportViewOrDefault);
-      } else if (options.format === "png") {
-        const imageBlob = await exportAsPNG(svg);
-        const filename = generateExportFilename(
-          layoutStore.layout.name,
-          exportViewOrDefault,
-          options.format,
-        );
-        downloadBlob(imageBlob, filename);
-        toastStore.showToast("PNG exported successfully", "success");
-        analytics.trackExportImage("png", exportViewOrDefault);
-      } else if (options.format === "jpeg") {
-        const imageBlob = await exportAsJPEG(svg);
-        const filename = generateExportFilename(
-          layoutStore.layout.name,
-          exportViewOrDefault,
-          options.format,
-        );
-        downloadBlob(imageBlob, filename);
-        toastStore.showToast("JPEG exported successfully", "success");
-        analytics.trackExportImage("jpeg", exportViewOrDefault);
-      } else if (options.format === "pdf") {
-        const svgString = exportAsSVG(svg);
-        const pdfBlob = await exportAsPDF(svgString, options.background);
-        const filename = generateExportFilename(
-          layoutStore.layout.name,
-          exportViewOrDefault,
-          options.format,
-        );
-        downloadBlob(pdfBlob, filename);
-        toastStore.showToast("PDF exported successfully", "success");
-        analytics.trackExportPDF(exportViewOrDefault);
-      } else if (options.format === "csv") {
-        // CSV export only supports single rack - warn if multiple racks exist
-        const firstRack = racksToExport[0];
-        if (!firstRack) {
-          throw new Error("No rack available for CSV export");
-        }
-        const csvContent = exportToCSV(firstRack, layoutStore.device_types);
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
-        const filename = generateExportFilename(
-          layoutStore.layout.name,
-          null,
-          options.format,
-        );
-        downloadBlob(blob, filename);
-        const successMsg =
-          racksToExport.length > 1
-            ? `CSV exported (first rack only - "${firstRack.name}")`
-            : "CSV exported successfully";
-        toastStore.showToast(successMsg, "success");
-        analytics.trackExportCSV();
-      }
-    } catch (error) {
-      console.error("Export failed:", error);
-      toastStore.showToast(
-        error instanceof Error ? error.message : "Export failed",
-        "error",
-      );
-    }
-  }
-
-  function handleExportCancel() {
-    dialogStore.close();
-    handleFitAll();
-  }
-
-  function handleShare() {
-    if (!layoutStore.hasRack) {
-      toastStore.showToast("No rack to share", "warning");
-      return;
-    }
-    dialogStore.open("share");
-
-    // Track share event (total devices across all racks)
-    analytics.trackShare(layoutStore.totalDeviceCount);
-  }
-
-  function handleShareClose() {
-    dialogStore.close();
-    handleFitAll();
-  }
-
-  function handleOpenYamlEditor() {
-    if (viewportStore.isMobile) {
-      dialogStore.openSheet("yamlEditor");
-      return;
-    }
-
-    dialogStore.open("yamlEditor");
-  }
-
-  function handleYamlEditorClose() {
-    dialogStore.close();
-    handleFitAll();
-  }
-
-  function handleYamlEditorSheetClose() {
-    dialogStore.closeSheet();
-    handleFitAll();
-  }
-
-  function handleYamlApply(nextLayout: Layout) {
-    layoutStore.loadLayout(nextLayout);
-    layoutStore.markDirty();
-    selectionStore.clearSelection();
-    toastStore.showToast("YAML applied", "success");
-
-    if (viewportStore.isMobile) {
-      dialogStore.closeSheet();
-    } else {
-      dialogStore.close();
-    }
-
-    requestAnimationFrame(() => {
-      handleFitAll();
-    });
-  }
-
   function handleDelete() {
     if (selectionStore.isRackSelected && selectionStore.selectedRackId) {
-      // Get the selected rack by ID
       const rack = layoutStore.getRackById(selectionStore.selectedRackId);
       if (rack) {
         dialogStore.deleteTarget = { type: "rack", name: rack.name };
@@ -962,7 +353,6 @@
         selectionStore.selectedRackId !== null &&
         selectionStore.selectedDeviceId !== null
       ) {
-        // Get the rack containing the selected device
         const rack = layoutStore.getRackById(selectionStore.selectedRackId);
         const deviceIndex = selectionStore.getSelectedDeviceIndex(
           rack?.devices ?? [],
@@ -982,56 +372,14 @@
     }
   }
 
-  function handleConfirmDelete() {
-    if (deleteTarget?.type === "rack" && selectionStore.selectedRackId) {
-      layoutStore.deleteRack(selectionStore.selectedRackId);
-      selectionStore.clearSelection();
-    } else if (deleteTarget?.type === "device") {
-      const rackId = selectionStore.selectedRackId;
-      const rack = rackId ? layoutStore.getRackById(rackId) : null;
-      const deviceIndex = selectionStore.getSelectedDeviceIndex(
-        rack?.devices ?? [],
-      );
-      if (rackId !== null && deviceIndex !== null) {
-        layoutStore.removeDeviceFromRack(rackId, deviceIndex);
-        selectionStore.clearSelection();
-      }
-    }
-    dialogStore.close();
-  }
-
-  function handleCancelDelete() {
-    dialogStore.close();
-    handleFitAll();
-  }
-
-  function handleFitAll() {
-    const rightOffset = uiStore.rightDrawerOpen ? DRAWER_WIDTH : 0;
-    canvasStore.fitAll(layoutStore.racks, layoutStore.rack_groups, rightOffset);
-  }
-
   function handleToggleTheme() {
     uiStore.toggleTheme();
   }
 
   function handleToggleDisplayMode() {
     uiStore.toggleDisplayMode();
-    // Sync with layout settings
     layoutStore.updateDisplayMode(uiStore.displayMode);
-    // Also sync showLabelsOnImages for backward compatibility
     layoutStore.updateShowLabelsOnImages(uiStore.showLabelsOnImages);
-    // Track display mode change
-    analytics.trackDisplayModeToggle(uiStore.displayMode);
-  }
-
-  function handleSetDisplayMode(mode: DisplayMode) {
-    if (uiStore.displayMode === mode) return;
-    uiStore.setDisplayMode(mode);
-    // Sync with layout settings
-    layoutStore.updateDisplayMode(uiStore.displayMode);
-    // Also sync showLabelsOnImages for backward compatibility
-    layoutStore.updateShowLabelsOnImages(uiStore.showLabelsOnImages);
-    // Track display mode change
     analytics.trackDisplayModeToggle(uiStore.displayMode);
   }
 
@@ -1039,383 +387,57 @@
     uiStore.toggleAnnotations();
   }
 
-  function handleSetAnnotations(enabled: boolean) {
-    uiStore.setAnnotations(enabled);
-  }
-
-  function handleSetTheme(theme: "dark" | "light") {
-    if (uiStore.theme === theme) return;
-    uiStore.setTheme(theme);
-  }
-
   function handleHelp() {
     dialogStore.open("help");
   }
 
-  function handleHelpClose() {
-    dialogStore.close();
-    handleFitAll();
-  }
-
-  function handleOpenCleanupDialog() {
-    cleanupReviewPendingOperation = null;
-    dialogStore.open("cleanupDialog");
-  }
-
-  function handleCleanupDialogClose(action: "delete" | "cancel" = "cancel") {
-    const pendingOp = cleanupReviewPendingOperation;
-    cleanupReviewPendingOperation = null;
-    dialogStore.close();
-
-    // Settings-triggered cleanup has no pending operation to continue.
-    if (!pendingOp) {
-      return;
-    }
-
-    // User cancelled review flow from cleanup dialog.
-    if (action !== "delete") {
-      return;
-    }
-
-    if (pendingOp === "save") {
-      if (isApiAvailable()) {
-        handleSaveToServer();
-      } else {
-        handleSaveAsArchive();
-      }
-    } else if (pendingOp === "saveAs") {
-      handleSaveAsArchive();
-    } else if (pendingOp === "export") {
-      handleExport();
-    }
-  }
-
   function handleAddDevice() {
-    // Close bottom sheet first to avoid z-index conflict on mobile
     dialogStore.closeSheet();
     dialogStore.open("addDevice");
   }
 
-  function handleAddDeviceCreate(data: {
-    name: string;
-    height: number;
-    category: import("$lib/types").DeviceCategory;
-    colour: string;
-    notes: string;
-    isFullDepth: boolean;
-    isHalfWidth: boolean;
-    rackWidths: RackWidth[];
-    frontImage?: ImageData;
-    rearImage?: ImageData;
-  }) {
-    const device = layoutStore.addDeviceType({
-      name: data.name,
-      u_height: data.height,
-      category: data.category,
-      colour: data.colour,
-      notes: data.notes || undefined,
-      is_full_depth: data.isFullDepth ? undefined : false,
-      slot_width: data.isHalfWidth ? 1 : undefined,
-      rack_widths: data.rackWidths,
-    });
-
-    // Store images if provided (v0.1.0)
-    if (data.frontImage) {
-      imageStore.setDeviceImage(device.slug, "front", data.frontImage);
-    }
-    if (data.rearImage) {
-      imageStore.setDeviceImage(device.slug, "rear", data.rearImage);
-    }
-
-    // Track custom device creation
-    analytics.trackCustomDeviceCreate(data.category);
-
-    toastStore.showToast(`"${data.name}" added to device library`, "success");
-    dialogStore.close();
-  }
-
-  function handleAddDeviceCancel() {
-    dialogStore.close();
-  }
-
-  // NetBox import handlers
   function handleImportFromNetBox() {
     dialogStore.open("importNetBox");
   }
 
-  function handleNetBoxImport(result: ImportResult) {
-    // Add the imported device type to the library
-    layoutStore.addDeviceTypeRaw(result.deviceType);
-    layoutStore.markDirty();
-
-    // Track the import
-    analytics.trackCustomDeviceCreate(result.deviceType.category);
-
-    toastStore.showToast(
-      `Imported "${result.deviceType.model}" to device library`,
-      "success",
-    );
-    dialogStore.close();
-  }
-
-  function handleNetBoxImportCancel() {
-    dialogStore.close();
-  }
-
-  // Device library JSON import handlers
   function handleImportDevices() {
-    deviceImportInputRef?.click();
+    // Delegates to DialogOrchestrator's hidden file input via dialogStore
+    // The DialogOrchestrator handles the actual file input click
+    dialogOrchestrator.handleImportDevices();
   }
 
-  async function handleDeviceImportFileChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-
-      // Get existing device slugs for duplicate detection
-      const existingSlugs = layoutStore.device_types.map((d) => d.slug);
-
-      // Parse and validate the import (returns DeviceType[])
-      const result = parseDeviceLibraryImport(text, existingSlugs);
-
-      if (result.error) {
-        toastStore.showToast(`Import failed: ${result.error}`, "error");
-        return;
-      }
-
-      // Add imported devices to library
-      for (const deviceType of result.devices) {
-        layoutStore.addDeviceTypeRaw(deviceType);
-      }
-
-      // Track successful import
-      analytics.trackPaletteImport();
-
-      // Show success toast
-      const message =
-        result.skipped > 0
-          ? `Imported ${result.devices.length} devices (${result.skipped} skipped)`
-          : `Imported ${result.devices.length} ${result.devices.length === 1 ? "device" : "devices"}`;
-
-      toastStore.showToast(message, "success");
-    } catch (error) {
-      console.error("Failed to import device library:", error);
-      toastStore.showToast("Failed to import device library", "error");
-    } finally {
-      // Reset file input
-      input.value = "";
+  function handleOpenYamlEditor() {
+    if (viewportStore.isMobile) {
+      dialogStore.openSheet("yamlEditor");
+      return;
     }
+    dialogStore.open("yamlEditor");
   }
 
-  // Flush any pending session save debounce immediately
-  function flushSessionSave() {
-    if (saveDebounceTimer && layoutStore.hasRack) {
-      clearTimeout(saveDebounceTimer);
-      saveDebounceTimer = null;
-      saveSession(layoutStore.layout);
-    }
+  function handleOpenCleanupDialog() {
+    dialogOrchestrator.handleOpenCleanupDialog();
   }
 
-  // Beforeunload handler for unsaved changes
-  function handleBeforeUnload(event: BeforeUnloadEvent) {
-    // Flush pending session save before the page unloads
-    flushSessionSave();
+  // Rack interaction handlers (used by Canvas and RackList)
 
-    if (uiStore.warnOnUnsavedChanges && layoutStore.isDirty) {
-      event.preventDefault();
-      // Modern browsers ignore custom messages, but we set it for legacy support
-      event.returnValue = "You have unsaved changes. Leave anyway?";
-      return event.returnValue;
-    }
-  }
-
-  onMount(() => {
-    // Flush pending session save when page becomes hidden (tab close, navigate away)
-    // visibilitychange fires reliably on mobile unlike beforeunload
-    function handleVisibilityChange() {
-      if (document.visibilityState === "hidden") {
-        flushSessionSave();
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Apply theme from storage (already done in ui store init)
-    // Session restore will be implemented in a later phase
-
-    // Load bundled images for starter library devices
-    imageStore.loadBundledImages();
-
-    // Set window title with environment prefix in non-production environments
-    const buildEnv = typeof __BUILD_ENV__ !== "undefined" ? __BUILD_ENV__ : "";
-    const isLocalhost =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-
-    let envPrefix = "";
-    if (isLocalhost) {
-      envPrefix = "LOCAL - ";
-    } else if (buildEnv === "development") {
-      envPrefix = "DEV - ";
-    }
-
-    if (envPrefix) {
-      document.title = `${envPrefix}${document.title}`;
-    }
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  });
-
-  // Watch for device selection changes to trigger mobile bottom sheet
-  $effect(() => {
-    const activeRack = layoutStore.activeRack;
-    if (viewportStore.isMobile && selectionStore.isDeviceSelected) {
-      const deviceIndex = selectionStore.getSelectedDeviceIndex(
-        activeRack?.devices ?? [],
-      );
-      debug.log("[Mobile] Device selected:", {
-        deviceIndex,
-        hasRack: !!activeRack,
-      });
-      if (deviceIndex !== null && activeRack) {
-        dialogStore.openSheet("deviceDetails", deviceIndex);
-        debug.log("[Mobile] Opening bottom sheet for device", deviceIndex);
-        // Note: Not zooming because bottom sheet covers most of viewport
-      }
-    } else if (!selectionStore.isDeviceSelected) {
-      // When device deselected, close sheet and fit all
-      if (viewportStore.isMobile && bottomSheetOpen) {
-        debug.log(
-          "[Mobile] Device deselected, closing bottom sheet and fitting all",
-        );
-        dialogStore.closeSheet();
-        canvasStore.fitAll(layoutStore.racks, layoutStore.rack_groups);
-      }
-    }
-  });
-
-  // Handle bottom sheet close
-  function handleBottomSheetClose() {
-    dialogStore.closeSheet();
-    selectionStore.clearSelection();
-    handleFitAll();
-  }
-
-  // Handle mobile device actions (remove, move)
-  function handleMobileRemoveDevice() {
-    const activeRack = layoutStore.activeRack;
-    if (selectedDeviceForSheet !== null && activeRack) {
-      layoutStore.removeDeviceFromRack(activeRack.id, selectedDeviceForSheet);
-      handleBottomSheetClose();
-    }
-  }
-
-  function handleMobileMoveDeviceUp() {
-    const activeRack = layoutStore.activeRack;
-    if (selectedDeviceForSheet !== null && activeRack) {
-      const device = activeRack.devices[selectedDeviceForSheet];
-      const deviceType = layoutStore.device_types.find(
-        (dt) => dt.slug === device?.device_type,
-      );
-      if (device && deviceType) {
-        // Move up = increase position (higher U number)
-        const newPosition = device.position + 1;
-        layoutStore.moveDevice(
-          activeRack.id,
-          selectedDeviceForSheet,
-          newPosition,
-        );
-      }
-    }
-  }
-
-  function handleMobileMoveDeviceDown() {
-    const activeRack = layoutStore.activeRack;
-    if (selectedDeviceForSheet !== null && activeRack) {
-      const device = activeRack.devices[selectedDeviceForSheet];
-      if (device && device.position > 1) {
-        // Move down = decrease position (lower U number)
-        const newPosition = device.position - 1;
-        layoutStore.moveDevice(
-          activeRack.id,
-          selectedDeviceForSheet,
-          newPosition,
-        );
-      }
-    }
-  }
-
-  // Handle view tab click (mobile)
-  function handleViewSheetClick() {
-    dialogStore.openSheet("view");
-  }
-
-  // Handle view sheet close (manual dismiss — re-fits canvas)
-  function handleViewSheetClose() {
-    dialogStore.closeSheet();
-    handleFitAll();
-  }
-
-  // Handle view sheet close after an action (no re-fit)
-  function handleViewSheetActionClose() {
-    dialogStore.closeSheet();
-  }
-
-  // Handle device library tab click (mobile bottom nav)
-  function handleDeviceLibraryTabClick() {
-    dialogStore.openSheet("deviceLibrary");
-  }
-
-  // Handle file tab click (mobile)
-  function handleFileTabClick() {
-    dialogStore.openSheet("fileActions");
-  }
-
-  // Handle file sheet close
-  function handleFileSheetClose() {
-    dialogStore.closeSheet();
-  }
-
-  // Handle device library sheet close
-  function handleDeviceLibrarySheetClose() {
-    dialogStore.closeSheet();
-    handleFitAll();
-  }
-
-  // Handle rack long press (mobile rack editing)
-  function handleRackLongPress(_event: CustomEvent<{ rackId: string }>) {
-    // Ignore if in placement mode (handled by enableLongPress prop, but double-check)
+  function handleRackLongPress(event: CustomEvent<{ rackId: string }>) {
     if (placementStore.isPlacing) return;
-
-    // Close any other open sheets first
+    const { rackId } = event.detail;
+    layoutStore.setActiveRack(rackId);
+    selectionStore.selectRack(rackId);
     dialogStore.closeSheet();
-    // Open rack edit sheet
     dialogStore.openSheet("rackEdit");
   }
 
-  // Handle rack edit sheet close
-  function handleRackEditSheetClose() {
-    dialogStore.closeSheet();
-    handleFitAll();
-  }
-
-  // Rack context menu handlers
   function handleRackContextEdit(rackId: string) {
     layoutStore.setActiveRack(rackId);
     selectionStore.selectRack(rackId);
     if (viewportStore.isMobile) {
       dialogStore.openSheet("rackEdit");
     }
-    // On desktop, the EditPanel automatically shows for selected rack
   }
 
   function handleRackContextRename(rackId: string) {
-    // Same as edit for now - opens the edit panel where name can be changed
     handleRackContextEdit(rackId);
   }
 
@@ -1425,7 +447,6 @@
       toastStore.showToast(result.error, "error");
     } else {
       toastStore.showToast("Rack duplicated", "success");
-      // Fit all to show the new rack
       handleFitAll();
     }
   }
@@ -1433,7 +454,6 @@
   function handleRackContextDelete(rackId: string) {
     const rack = layoutStore.getRackById(rackId);
     if (rack) {
-      // Set up and show delete confirmation
       layoutStore.setActiveRack(rackId);
       selectionStore.selectRack(rackId);
       dialogStore.deleteTarget = { type: "rack", name: rack.name };
@@ -1447,7 +467,6 @@
       return;
     }
 
-    // Generate QR code for the share URL (for optional embedding in export)
     try {
       const shareUrl = generateShareUrl(layoutStore.layout);
       if (canFitInQR(shareUrl)) {
@@ -1461,7 +480,6 @@
       dialogStore.exportQrCodeDataUrl = undefined;
     }
 
-    // Set pre-selected rack IDs for export dialog
     dialogStore.exportSelectedRackIds = rackIds;
     dialogStore.open("export");
   }
@@ -1477,140 +495,11 @@
     );
   }
 
-  // Handle mobile device selection from palette (enters placement mode)
-  function handleMobileDeviceSelect(
-    event: CustomEvent<{ device: import("$lib/types").DeviceType }>,
-  ) {
-    const { device } = event.detail;
-    hapticTap(); // Fire haptic immediately for snappier feedback
-    placementStore.startPlacement(device);
-    // Close all sheets when entering placement mode
-    dialogStore.closeSheet();
-  }
-
-  // Auto-save layout to localStorage with debouncing
-  let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  $effect(() => {
-    // Watch layout changes (triggered when layout.rack or any property changes)
-    // Access the layout to track it
-    const currentLayout = layoutStore.layout;
-
-    // Only save if there's a rack to save
-    if (layoutStore.hasRack) {
-      // Clear existing timer
-      if (saveDebounceTimer) {
-        clearTimeout(saveDebounceTimer);
-      }
-
-      // Debounce saves (1000ms)
-      saveDebounceTimer = setTimeout(() => {
-        saveSession(currentLayout);
-        saveDebounceTimer = null;
-      }, 1000);
-    }
-
-    // Cleanup on component destroy or effect re-run
-    return () => {
-      if (saveDebounceTimer) {
-        clearTimeout(saveDebounceTimer);
-        saveDebounceTimer = null;
-      }
-    };
-  });
-
-  // Auto-save to server when API is available
-  // Only saves layouts with meaningful content (user has interacted)
-  let serverSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  $effect(() => {
-    // Check runtime API availability instead of build-time flag
-    if (!isApiAvailable()) return;
-
-    // Circuit breaker: stop auto-saving after repeated failures (#1088)
-    // Manual save (Ctrl+S) bypasses this and resets the counter on success.
-    if (_consecutiveSaveFailures >= MAX_SAVE_FAILURES) return;
-
-    const layout = layoutStore.layout;
-    if (!layout.name) return;
-
-    // Don't auto-save empty layouts to server (fixes #1003)
-    // hasStarted is true when user has added a rack, loaded a layout, or placed a device
-    // This prevents polluting server with empty "Racky McRackface" layouts on every visit
-    // Note: localStorage session save (lines 1164-1186) still saves empty state for recovery
-    if (!layoutStore.hasStarted) return;
-
-    // Don't auto-save layouts with no racks — even if hasStarted is stale (#1326)
-    if (layout.racks.length === 0) return;
-
-    // Clear existing timer
-    if (serverSaveTimer) {
-      clearTimeout(serverSaveTimer);
-    }
-
-    // Debounced save with status tracking
-    // Use $state.snapshot to get plain object from Svelte 5 proxy, then clone
-    const snapshot = structuredClone($state.snapshot(layout));
-    serverSaveTimer = setTimeout(async () => {
-      saveStatus = "saving";
-      try {
-        // UUID comes from layout metadata now, not passed as parameter
-        const newId = await saveLayoutToServer(snapshot);
-        _currentLayoutId = newId;
-        _consecutiveSaveFailures = 0; // Reset circuit breaker on success
-        saveStatus = "saved";
-
-        // Clear localStorage after successful server save to prevent stale data (#1012)
-        // This ensures that if user returns on a different device, they get server data
-        clearSession();
-      } catch (e) {
-        console.warn("Auto-save failed:", e);
-        // Degrade to offline mode for network/proxy/routing failures.
-        handlePersistenceError(e);
-      }
-      serverSaveTimer = null;
-    }, 2000);
-
-    return () => {
-      if (serverSaveTimer) {
-        clearTimeout(serverSaveTimer);
-        serverSaveTimer = null;
-      }
-    };
-  });
-
-  // Periodically check API health when offline
-  $effect(() => {
-    // Only run health checks if API was previously available but went offline
-    const apiState = getApiAvailableState();
-    if (apiState === null) return; // Not initialized yet
-    if (apiState === true) return; // API is available
-    if (!hasEverConnectedToApi()) return; // Never had API — don't poll
-    // Defence-in-depth: saveStatus could be set to "disabled" independently of
-    // hasEverConnectedToApi() in future code paths, so check both signals.
-    if (saveStatus === "disabled") return;
-
-    // Don't poll if circuit breaker is open — user must retry manually (#1088)
-    if (_consecutiveSaveFailures >= MAX_SAVE_FAILURES) return;
-
-    persistenceDebug.health("API offline, starting health check interval");
-    const intervalId = setInterval(async () => {
-      const healthy = await checkApiHealth();
-      if (healthy) {
-        persistenceDebug.health("API health check passed, marking available");
-        setApiAvailable(true);
-        saveStatus = "idle";
-      } else {
-        persistenceDebug.health("API health check failed, still offline");
-      }
-    }, 30000); // Check every 30 seconds
-
-    return () => clearInterval(intervalId);
-  });
+  // DialogOrchestrator component reference for delegating calls
+  let dialogOrchestrator: DialogOrchestrator;
 </script>
 
-<svelte:window
-  onbeforeunload={handleBeforeUnload}
-  onkeydown={(e) => konamiDetector.handleKeyDown(e)}
-/>
+<svelte:window onkeydown={(e) => konamiDetector.handleKeyDown(e)} />
 
 <!-- Tooltip.Provider enables shared tooltip state - only one tooltip shows at a time -->
 <Tooltip.Provider delayDuration={500}>
@@ -1735,234 +624,7 @@
       {/if}
     </main>
 
-    <!-- Mobile bottom sheet for device details -->
-    {#if viewportStore.isMobile && bottomSheetOpen && selectedDeviceForSheet !== null && layoutStore.activeRack}
-      {@const activeRack = layoutStore.activeRack}
-      {@const device = activeRack.devices[selectedDeviceForSheet]}
-      {@const deviceType = device
-        ? layoutStore.device_types.find((dt) => dt.slug === device.device_type)
-        : null}
-      {#if device && deviceType}
-        {@const rackHeight = activeRack.height}
-        {@const maxPosition = rackHeight - deviceType.u_height + 1}
-        {@const canMoveUp = device.position < maxPosition}
-        {@const canMoveDown = device.position > 1}
-        <BottomSheet
-          open={bottomSheetOpen}
-          title={deviceType.model}
-          onclose={handleBottomSheetClose}
-        >
-          <DeviceDetails
-            {device}
-            {deviceType}
-            rackView={activeRack.view}
-            {rackHeight}
-            showActions={true}
-            onremove={handleMobileRemoveDevice}
-            onmoveup={handleMobileMoveDeviceUp}
-            onmovedown={handleMobileMoveDeviceDown}
-            {canMoveUp}
-            {canMoveDown}
-          />
-        </BottomSheet>
-      {/if}
-    {/if}
-
-    <NewRackWizard
-      open={newRackFormOpen}
-      rackCount={layoutStore.rackCount}
-      oncreate={handleNewRackCreate}
-      oncancel={handleNewRackCancel}
-    />
-
-    <AddDeviceForm
-      open={addDeviceFormOpen}
-      activeRackWidth={layoutStore.activeRack?.width}
-      onadd={handleAddDeviceCreate}
-      oncancel={handleAddDeviceCancel}
-    />
-
-    <ImportFromNetBoxDialog
-      open={importFromNetBoxOpen}
-      onimport={handleNetBoxImport}
-      oncancel={handleNetBoxImportCancel}
-    />
-
-    <ConfirmDialog
-      open={confirmDeleteOpen}
-      title={deleteTarget?.type === "rack" ? "Delete Rack" : "Remove Device"}
-      message={deleteTarget?.type === "rack"
-        ? `Are you sure you want to delete "${deleteTarget?.name}"? All devices in this rack will be removed.`
-        : `Are you sure you want to remove "${deleteTarget?.name}" from this rack?`}
-      confirmLabel={deleteTarget?.type === "rack" ? "Delete Rack" : "Remove"}
-      onconfirm={handleConfirmDelete}
-      oncancel={handleCancelDelete}
-    />
-
-    <ConfirmReplaceDialog
-      open={showReplaceDialog}
-      onSaveFirst={handleSaveFirst}
-      onReplace={handleReplace}
-      onCancel={handleCancelReplace}
-    />
-
-    <CleanupPromptDialog
-      open={cleanupPromptOpen}
-      operation={cleanupPromptOperation}
-      unusedCount={getUnusedCustomTypeCount()}
-      onreview={handleCleanupReview}
-      onkeepall={handleCleanupKeepAll}
-      oncancel={handleCleanupCancel}
-      ondontaskagain={handleCleanupDontAskAgain}
-    />
-
-    <ExportDialog
-      open={exportDialogOpen}
-      racks={layoutStore.racks}
-      rackGroups={layoutStore.rack_groups}
-      deviceTypes={layoutStore.device_types}
-      images={imageStore.getAllImages()}
-      displayMode={uiStore.displayMode}
-      layoutName={layoutStore.layout.name}
-      selectedRackId={selectionStore.isRackSelected
-        ? selectionStore.selectedRackId
-        : null}
-      selectedRackIds={dialogStore.exportSelectedRackIds}
-      qrCodeDataUrl={exportQrCodeDataUrl}
-      onexport={(e) => handleExportSubmit(e.detail)}
-      oncancel={handleExportCancel}
-    />
-
-    <ShareDialog
-      open={shareDialogOpen}
-      layout={layoutStore.layout}
-      onclose={handleShareClose}
-    />
-
-    <Dialog
-      open={yamlEditorDialogOpen}
-      title="Layout YAML"
-      width="min(980px, 95vw)"
-      onclose={handleYamlEditorClose}
-    >
-      <LayoutYamlPanel
-        open={yamlEditorDialogOpen}
-        layout={layoutStore.layout}
-        onapply={handleYamlApply}
-      />
-    </Dialog>
-
-    <HelpPanel open={helpPanelOpen} onclose={handleHelpClose} />
-
-    <CleanupDialog
-      open={cleanupDialogOpen}
-      onclose={handleCleanupDialogClose}
-    />
-
-    <LoadDialog />
-
-    <ToastContainer />
-
-    <!-- Port tooltip for network interface hover -->
-    <PortTooltip />
-
-    <!-- Drag tooltip for device name/U-height during drag -->
-    <DragTooltip />
-
-    <!-- Mobile bottom navigation bar -->
-    <MobileBottomNav
-      activeTab={fileSheetOpen
-        ? "file"
-        : viewSheetOpen
-          ? "view"
-          : deviceLibrarySheetOpen
-            ? "devices"
-            : null}
-      hidden={false}
-      onfileclick={handleFileTabClick}
-      onviewclick={handleViewSheetClick}
-      ondevicesclick={handleDeviceLibraryTabClick}
-    />
-
-    {#if viewportStore.isMobile && fileSheetOpen}
-      <BottomSheet
-        open={fileSheetOpen}
-        title="File"
-        onclose={handleFileSheetClose}
-      >
-        <MobileFileSheet
-          onload={handleLoad}
-          onsave={maybeSave}
-          onsaveas={maybeSaveAs}
-          onexport={handleExport}
-          onshare={handleShare}
-          onviewyaml={handleOpenYamlEditor}
-          onclose={handleFileSheetClose}
-          hasRacks={layoutStore.hasRack}
-        />
-      </BottomSheet>
-    {/if}
-
-    {#if viewportStore.isMobile && yamlEditorSheetOpen}
-      <BottomSheet
-        open={yamlEditorSheetOpen}
-        title="Layout YAML"
-        onclose={handleYamlEditorSheetClose}
-      >
-        <LayoutYamlPanel
-          open={yamlEditorSheetOpen}
-          layout={layoutStore.layout}
-          onapply={handleYamlApply}
-        />
-      </BottomSheet>
-    {/if}
-
-    {#if viewportStore.isMobile && viewSheetOpen}
-      <BottomSheet
-        open={viewSheetOpen}
-        title="View"
-        onclose={handleViewSheetClose}
-      >
-        <MobileViewSheet
-          displayMode={uiStore.displayMode}
-          showAnnotations={uiStore.showAnnotations}
-          theme={uiStore.theme}
-          ondisplaymodechange={handleSetDisplayMode}
-          onannotationschange={handleSetAnnotations}
-          onthemechange={handleSetTheme}
-          onfitall={handleFitAll}
-          onresetzoom={() => canvasStore.resetZoom()}
-          onclose={handleViewSheetActionClose}
-        />
-      </BottomSheet>
-    {/if}
-
-    {#if viewportStore.isMobile && deviceLibrarySheetOpen}
-      <BottomSheet
-        open={deviceLibrarySheetOpen}
-        title="Device Library"
-        onclose={handleDeviceLibrarySheetClose}
-      >
-        <DevicePalette
-          ondeviceselect={handleMobileDeviceSelect}
-          oncreatedevice={handleAddDevice}
-        />
-      </BottomSheet>
-    {/if}
-
-    <!-- Mobile rack edit sheet (opened via long press on rack) -->
-    {#if viewportStore.isMobile && rackEditSheetOpen && layoutStore.activeRack}
-      <BottomSheet
-        open={rackEditSheetOpen}
-        title="Edit Rack"
-        onclose={handleRackEditSheetClose}
-      >
-        <RackEditSheet
-          rack={layoutStore.activeRack}
-          onclose={handleRackEditSheetClose}
-        />
-      </BottomSheet>
-    {/if}
+    <DialogOrchestrator bind:this={dialogOrchestrator} />
 
     <KeyboardHandler
       onsave={maybeSave}
@@ -1977,18 +639,18 @@
       ontoggleannotations={handleToggleAnnotations}
     />
 
+    <PersistenceEffects />
+
     <!-- Global SVG gradient definitions for animations -->
     <AnimationDefs />
 
-    <!-- Hidden file input for device library JSON import -->
-    <input
-      bind:this={deviceImportInputRef}
-      type="file"
-      accept=".json,application/json"
-      onchange={handleDeviceImportFileChange}
-      style="display: none;"
-      aria-label="Import device library file"
-    />
+    <ToastContainer />
+
+    <!-- Port tooltip for network interface hover -->
+    <PortTooltip />
+
+    <!-- Drag tooltip for device name/U-height during drag -->
+    <DragTooltip />
   </div>
 </Tooltip.Provider>
 

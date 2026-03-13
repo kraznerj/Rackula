@@ -94,6 +94,7 @@ export type DropAction =
       feedback: DropFeedback;
       targetU: number;
       deviceHeight: number;
+      slotPosition: SlotPosition;
       excludeIndex?: number;
     };
 
@@ -264,6 +265,7 @@ export function resolveDropAction(
       feedback,
       targetU,
       deviceHeight: dragData.device.u_height,
+      slotPosition,
       excludeIndex,
     };
   }
@@ -319,6 +321,7 @@ export function buildCollisionMessage(
   targetU: number,
   excludeIndex?: number,
   faceFilter?: DeviceFace,
+  slotPosition?: SlotPosition,
 ): string | null {
   if (feedback === "blocked") {
     const collisions: PlacedDevice[] = findCollisions(
@@ -328,6 +331,7 @@ export function buildCollisionMessage(
       targetU,
       excludeIndex,
       faceFilter,
+      slotPosition,
     );
 
     if (collisions.length > 0) {

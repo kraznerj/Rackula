@@ -102,6 +102,7 @@ export function dispatchDropAction(
           action.targetU,
           action.excludeIndex,
           collisionContext.faceFilter,
+          action.slotPosition,
         );
         if (message) {
           collisionContext.toastStore.showToast(message, "warning", 3000);

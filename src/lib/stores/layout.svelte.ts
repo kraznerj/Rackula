@@ -101,7 +101,7 @@ function saveHasStarted(value: boolean): void {
 }
 
 // Module-level state (using $state rune)
-let layout = $state<Layout>(createLayout("Racky McRackface"));
+let layout = $state<Layout>(createLayout());
 let isDirty = $state(false);
 let hasStarted = $state(loadHasStarted());
 let activeRackId = $state<string | null>(null);
@@ -140,7 +140,7 @@ const totalDeviceCount = $derived(
  * @param clearStarted - If true, also clears the hasStarted flag (default: true)
  */
 export function resetLayoutStore(clearStarted: boolean = true): void {
-  layout = createLayout("Racky McRackface");
+  layout = createLayout();
   isDirty = false;
   activeRackId = null;
   if (clearStarted) {
@@ -1838,7 +1838,13 @@ function updateDeviceIp(
 function setLayoutName(name: string): void {
   const trimmed = name.trim();
   if (trimmed && trimmed !== layout.name) {
-    layout = { ...layout, name: trimmed };
+    layout = {
+      ...layout,
+      name: trimmed,
+      metadata: layout.metadata
+        ? { ...layout.metadata, name: trimmed }
+        : layout.metadata,
+    };
     markDirty();
   }
 }

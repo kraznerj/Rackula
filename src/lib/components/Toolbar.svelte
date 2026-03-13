@@ -269,7 +269,7 @@
           type="text"
           bind:value={editNameValue}
           onkeydown={handleNameKeydown}
-          onblur={commitName}
+          onblur={() => isEditingName && commitName()}
           aria-label="Layout name"
           data-testid="layout-name-input"
           autofocus

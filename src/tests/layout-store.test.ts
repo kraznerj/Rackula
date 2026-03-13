@@ -19,7 +19,7 @@ describe("Layout Store", () => {
   describe("initial state", () => {
     it("initializes with correct app version", () => {
       const store = getLayoutStore();
-      expect(store.layout.name).toBe("Racky McRackface");
+      expect(store.layout.name).toBe("My Layout");
       expect(store.layout.version).toBe(VERSION);
       // Starts with empty racks array - user creates first rack via wizard
       expect(store.layout.racks).toEqual([]);
@@ -1722,7 +1722,7 @@ describe("Layout Store", () => {
       resetLayoutStore();
       const freshStore = getLayoutStore();
 
-      expect(freshStore.layout.name).toBe("Racky McRackface");
+      expect(freshStore.layout.name).toBe("My Layout");
       // Racks array starts empty - user creates first rack via wizard
       expect(freshStore.layout.racks).toEqual([]);
       // device_types starts empty (starter library is a runtime constant, not stored)

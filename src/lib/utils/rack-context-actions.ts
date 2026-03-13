@@ -1,0 +1,126 @@
+/**
+ * Rack Context Menu Actions
+ * Factory for context menu handlers, extracted from Rack.svelte.
+ */
+
+import type { Rack as RackType, DeviceType } from "$lib/types";
+import type { getLayoutStore } from "$lib/stores/layout.svelte";
+import type { getSelectionStore } from "$lib/stores/selection.svelte";
+import type { getToastStore } from "$lib/stores/toast.svelte";
+import { toHumanUnits } from "$lib/utils/position";
+
+export interface ContextMenuTarget {
+  rackId: string;
+  deviceIndex: number;
+  x: number;
+  y: number;
+}
+
+export interface RackContextActions {
+  handleEdit(rack: RackType, target: ContextMenuTarget): void;
+  handleDuplicate(rack: RackType, target: ContextMenuTarget): void;
+  handleMoveUp(
+    rack: RackType,
+    deviceLibrary: DeviceType[],
+    target: ContextMenuTarget,
+  ): void;
+  handleMoveDown(rack: RackType, target: ContextMenuTarget): void;
+  handleDelete(target: ContextMenuTarget): void;
+  getCanMoveUp(
+    rack: RackType,
+    deviceLibrary: DeviceType[],
+    deviceIndex: number,
+  ): boolean;
+  getCanMoveDown(rack: RackType, deviceIndex: number): boolean;
+}
+
+export function createContextMenuActions(
+  layoutStore: ReturnType<typeof getLayoutStore>,
+  selectionStore: ReturnType<typeof getSelectionStore>,
+  toastStore: ReturnType<typeof getToastStore>,
+): RackContextActions {
+  function handleEdit(rack: RackType, target: ContextMenuTarget): void {
+    const device = rack.devices[target.deviceIndex];
+    if (device) {
+      selectionStore.selectDevice(target.rackId, device.id);
+    }
+  }
+
+  function handleDuplicate(rack: RackType, target: ContextMenuTarget): void {
+    const { rackId, deviceIndex } = target;
+    const result = layoutStore.duplicateDevice(rackId, deviceIndex);
+    if (result.error) {
+      toastStore.showToast(result.error, "error");
+    } else if (result.device) {
+      selectionStore.selectDevice(rackId, result.device.id);
+      toastStore.showToast("Device duplicated", "success");
+    }
+  }
+
+  function handleMoveUp(
+    rack: RackType,
+    deviceLibrary: DeviceType[],
+    target: ContextMenuTarget,
+  ): void {
+    const device = rack.devices[target.deviceIndex];
+    if (!device) return;
+
+    const deviceType = deviceLibrary.find(
+      (d) => d.slug === device.device_type,
+    );
+    if (!deviceType) return;
+
+    const currentPositionU = toHumanUnits(device.position);
+    const newPositionU = currentPositionU + 1;
+    layoutStore.moveDevice(rack.id, target.deviceIndex, newPositionU);
+  }
+
+  function handleMoveDown(rack: RackType, target: ContextMenuTarget): void {
+    const device = rack.devices[target.deviceIndex];
+    if (!device) return;
+
+    const currentPositionU = toHumanUnits(device.position);
+    const newPositionU = currentPositionU - 1;
+    if (newPositionU >= 1) {
+      layoutStore.moveDevice(rack.id, target.deviceIndex, newPositionU);
+    }
+  }
+
+  function handleDelete(target: ContextMenuTarget): void {
+    layoutStore.removeDeviceFromRack(target.rackId, target.deviceIndex);
+    selectionStore.clearSelection();
+  }
+
+  function getCanMoveUp(
+    rack: RackType,
+    deviceLibrary: DeviceType[],
+    deviceIndex: number,
+  ): boolean {
+    const device = rack.devices[deviceIndex];
+    if (!device) return false;
+    const deviceType = deviceLibrary.find(
+      (d) => d.slug === device.device_type,
+    );
+    if (!deviceType) return false;
+    const maxPosition = rack.height - deviceType.u_height + 1;
+    const positionU = toHumanUnits(device.position);
+    return positionU < maxPosition;
+  }
+
+  function getCanMoveDown(rack: RackType, deviceIndex: number): boolean {
+    const device = rack.devices[deviceIndex];
+    if (!device) return false;
+    const positionU = toHumanUnits(device.position);
+    return positionU > 1;
+  }
+
+  return {
+    handleEdit,
+    handleDuplicate,
+    handleMoveUp,
+    handleMoveDown,
+    handleDelete,
+    getCanMoveUp,
+    getCanMoveDown,
+  };
+}

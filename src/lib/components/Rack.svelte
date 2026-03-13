@@ -15,21 +15,14 @@
   import DeviceContextMenu from "./DeviceContextMenu.svelte";
   import {
     parseDragData,
-    calculateDropPosition,
-    calculateDropSlotPosition,
     getDropFeedback,
     getCurrentDragData,
-    detectContainerDropTarget,
-    detectContainerHover,
     type DropFeedback,
     type ContainerHoverInfo,
   } from "$lib/utils/dragdrop";
-  import { findCollisions } from "$lib/utils/collision";
-  import { getDeviceDisplayName } from "$lib/utils/device";
   import { getToastStore } from "$lib/stores/toast.svelte";
   import { getLayoutStore } from "$lib/stores/layout.svelte";
   import { getSelectionStore } from "$lib/stores/selection.svelte";
-  import { screenToSVG } from "$lib/utils/coordinates";
   import { getCanvasStore } from "$lib/stores/canvas.svelte";
   import { getBlockedSlots } from "$lib/utils/blocked-slots";
   import { isChristmas } from "$lib/utils/christmas";
@@ -38,6 +31,21 @@
   import { hapticError, hapticCancel } from "$lib/utils/haptics";
   import { SvelteSet, SvelteMap } from "svelte/reactivity";
   import { toHumanUnits } from "$lib/utils/position";
+  import {
+    U_HEIGHT_PX,
+    RAIL_WIDTH as RAIL_WIDTH_CONST,
+    BASE_RACK_WIDTH,
+    BASE_RACK_PADDING as BASE_RACK_PADDING_CONST,
+    RACK_PADDING_HIDDEN,
+    NAME_Y_OFFSET as NAME_Y_OFFSET_CONST,
+  } from "$lib/constants/layout";
+  import {
+    resolveDropTarget,
+    resolveDropAction,
+    buildCollisionMessage,
+    type RackDimensions,
+  } from "$lib/utils/rack-drop-coordinator";
+  import { createContextMenuActions } from "$lib/utils/rack-context-actions";
 
   const canvasStore = getCanvasStore();
   const viewportStore = getViewportStore();
@@ -182,19 +190,18 @@
     };
   }
 
-  // CSS custom property values (fallbacks match app.css)
-  const U_HEIGHT = 22;
-  const BASE_RACK_WIDTH = 220; // Base width for 19" rack
-  const RAIL_WIDTH = 17;
-  const BASE_RACK_PADDING = 18; // Space at top for rack name (13px font + margin)
-  const NAME_Y_OFFSET = 4; // Extra space above rack name to prevent cutoff on narrow racks
+  // Local aliases for imported constants (minimise diff in template references)
+  const U_HEIGHT = U_HEIGHT_PX;
+  const RAIL_WIDTH = RAIL_WIDTH_CONST;
+  const BASE_RACK_PADDING = BASE_RACK_PADDING_CONST;
+  const NAME_Y_OFFSET = NAME_Y_OFFSET_CONST;
 
   // Calculate actual width based on rack.width (10" or 19")
   // Scale proportionally: 10" rack = 220 * 10/19 ≈ 116
   const RACK_WIDTH = $derived(Math.round((BASE_RACK_WIDTH * rack.width) / 19));
 
   // Rack padding is reduced when rack name is hidden (in dual-view mode)
-  const RACK_PADDING = $derived(hideRackName ? 4 : BASE_RACK_PADDING);
+  const RACK_PADDING = $derived(hideRackName ? RACK_PADDING_HIDDEN : BASE_RACK_PADDING);
 
   // ViewBox Y offset - only needed when showing rack name (for anti-cutoff margin)
   const viewBoxYOffset = $derived(hideRackName ? 0 : NAME_Y_OFFSET);
@@ -204,6 +211,23 @@
   // viewBoxHeight includes: rack name padding + top bar + U slots + bottom bar
   const viewBoxHeight = $derived(RACK_PADDING + RAIL_WIDTH * 2 + totalHeight);
   const interiorWidth = $derived(RACK_WIDTH - RAIL_WIDTH * 2);
+
+  // Dimensions bundle for the drop coordinator
+  const rackDims = $derived<RackDimensions>({
+    rackHeight: rack.height,
+    rackWidth: RACK_WIDTH,
+    interiorWidth,
+    uHeight: U_HEIGHT,
+    rackPadding: RACK_PADDING,
+    railWidth: RAIL_WIDTH,
+  });
+
+  // Context menu action factory
+  const contextActions = createContextMenuActions(
+    layoutStore,
+    selectionStore,
+    toastStore,
+  );
 
   // Drop preview state
   let dropPreview = $state<{
@@ -340,63 +364,21 @@
       if (!svgElement) return;
       const { clientX, clientY, device } = event.detail;
 
-      // Determine if this is an internal move (same rack)
       const isInternalMove = event.detail.rackId === rack.id;
+      const excludeIndex = isInternalMove ? event.detail.deviceIndex : undefined;
 
-      // Calculate target position using transform-aware coordinates
-      const svgCoords = screenToSVG(svgElement, clientX, clientY);
-      const mouseY = svgCoords.y - RACK_PADDING;
-
-      const targetU = calculateDropPosition(
-        mouseY,
-        rack.height,
-        U_HEIGHT,
-        RACK_PADDING,
-      );
-
-      // Calculate X offset within rack interior for container hover detection and slot position
-      const xOffsetInRack = svgCoords.x - RAIL_WIDTH;
-
-      // Calculate slot position for half-width devices
-      const deviceSlotWidth = device.slot_width ?? 2;
-      const slotPosition = calculateDropSlotPosition(
-        xOffsetInRack,
-        interiorWidth,
-        deviceSlotWidth,
-      );
-      const isHalfWidth = deviceSlotWidth === 1;
-
-      // Detect if hovering over a container slot
-      containerHoverInfo = detectContainerHover(
+      const result = resolveDropTarget(
+        { svgElement, clientX, clientY },
+        rackDims,
         rack,
         deviceLibrary,
         device,
-        targetU,
-        xOffsetInRack,
-        RACK_WIDTH,
-      );
-
-      // For internal moves, exclude the source device from collision checks
-      const excludeIndex = isInternalMove
-        ? event.detail.deviceIndex
-        : undefined;
-      const feedback = getDropFeedback(
-        rack,
-        deviceLibrary,
-        device.u_height,
-        targetU,
-        excludeIndex,
         effectiveFaceFilter,
-        slotPosition,
+        excludeIndex,
       );
 
-      dropPreview = {
-        position: targetU,
-        height: device.u_height,
-        feedback,
-        slotPosition,
-        isHalfWidth,
-      };
+      containerHoverInfo = result.containerHoverInfo;
+      dropPreview = result.dropPreview;
     }
 
     function handleDragEnd(event: CustomEvent) {
@@ -414,73 +396,54 @@
       containerHoverInfo = null;
       _draggingDeviceIndex = null;
 
-      // Determine if this is an internal move (cross-rack is simply !isInternalMove)
-      const isInternalMove = sourceRackId === rack.id;
-
-      // Calculate target position
-      const svgCoords = screenToSVG(svgElement, clientX, clientY);
-      const mouseY = svgCoords.y - RACK_PADDING;
-
-      const targetU = calculateDropPosition(
-        mouseY,
-        rack.height,
-        U_HEIGHT,
-        RACK_PADDING,
-      );
-
-      // Validate placement
-      const excludeIndex = isInternalMove ? deviceIndex : undefined;
-
       // Preserve existing slot_position for pointer-based moves
-      // Always read from the source rack so cross-rack moves keep the correct slot
       const sourceRack = layoutStore.getRackById(sourceRackId);
       const existingSlot = sourceRack?.devices[deviceIndex]?.slot_position;
 
-      const feedback = getDropFeedback(
+      const action = resolveDropAction(
+        { svgElement, clientX, clientY },
+        rackDims,
         rack,
         deviceLibrary,
-        device.u_height,
-        targetU,
-        excludeIndex,
+        { type: "rack-device", device, sourceRackId, sourceIndex: deviceIndex },
         effectiveFaceFilter,
+        selectedDeviceId,
         existingSlot,
       );
 
-      if (feedback === "valid") {
-        if (isInternalMove && deviceIndex !== undefined) {
-          // Internal move within same rack
+      switch (action.kind) {
+        case "internal-move":
           ondevicemove?.(
             new CustomEvent("devicemove", {
               detail: {
-                rackId: rack.id,
-                deviceIndex: deviceIndex,
-                newPosition: targetU,
-                slot_position: existingSlot,
+                rackId: action.rackId,
+                deviceIndex: action.deviceIndex,
+                newPosition: action.targetU,
+                slot_position: action.slotPosition,
               },
             }),
           );
-        } else if (!isInternalMove && deviceIndex !== undefined) {
-          // Cross-rack move
+          break;
+        case "cross-rack-move":
           ondevicemoverack?.(
             new CustomEvent("devicemoverack", {
               detail: {
-                sourceRackId: sourceRackId,
-                sourceIndex: deviceIndex,
-                targetRackId: rack.id,
-                targetPosition: targetU,
-                slot_position: existingSlot,
+                sourceRackId: action.sourceRackId,
+                sourceIndex: action.sourceIndex,
+                targetRackId: action.targetRackId,
+                targetPosition: action.targetU,
+                slot_position: action.slotPosition,
               },
             }),
           );
-        }
-      } else {
-        // Invalid placement - haptic feedback
-        hapticError();
+          break;
+        case "invalid":
+          hapticError();
+          break;
       }
 
       // Set flag to prevent rack selection on the click that follows
       justFinishedDrag = true;
-      // Clear any existing timeout to avoid race conditions
       if (dragDebounceTimeout) {
         clearTimeout(dragDebounceTimeout);
       }
@@ -545,50 +508,36 @@
    * Only active when on mobile viewport and in placement mode.
    */
   function handleTouchEnd(event: TouchEvent) {
-    // Only handle in mobile placement mode
     if (!viewportStore.isMobile || !placementStore.isPlacing) return;
 
     const device = placementStore.pendingDevice;
     if (!device) return;
 
-    // Prevent default to avoid triggering click events
     event.preventDefault();
 
     const touch = event.changedTouches[0];
     if (!touch) return;
 
-    // Get SVG element and convert touch coordinates to SVG space
     const svg = event.currentTarget as SVGSVGElement;
-    const svgCoords = screenToSVG(svg, touch.clientX, touch.clientY);
-    const mouseY = svgCoords.y - RACK_PADDING;
-
-    // Calculate target U position
-    const targetU = calculateDropPosition(
-      mouseY,
-      rack.height,
-      U_HEIGHT,
-      RACK_PADDING,
-    );
-
-    // Validate placement
-    const feedback = getDropFeedback(
+    const result = resolveDropTarget(
+      { svgElement: svg, clientX: touch.clientX, clientY: touch.clientY },
+      rackDims,
       rack,
       deviceLibrary,
-      device.u_height,
-      targetU,
-      undefined,
+      device,
       effectiveFaceFilter,
     );
 
-    if (feedback === "valid") {
-      // Fire placement tap event
+    if (result.feedback === "valid") {
       onplacementtap?.(
         new CustomEvent("placementtap", {
-          detail: { position: targetU, face: effectiveFaceFilter ?? "front" },
+          detail: {
+            position: result.targetU,
+            face: effectiveFaceFilter ?? "front",
+          },
         }),
       );
     } else {
-      // Invalid placement - provide haptic feedback
       hapticError();
     }
   }
@@ -598,18 +547,15 @@
     if (!event.dataTransfer) return;
 
     // Try dataTransfer first (works in drop), fall back to shared state (needed for dragover)
-    // Safari compatibility: try application/json first, fall back to text/plain
     let dragData = parseDragData(
       event.dataTransfer.getData("application/json") ||
         event.dataTransfer.getData("text/plain"),
     );
     if (!dragData) {
-      // getData() blocked during dragover in most browsers - use shared state
       dragData = getCurrentDragData();
     }
     if (!dragData) return;
 
-    // Determine if this is an internal move (same rack)
     const isInternalMove =
       dragData.type === "rack-device" &&
       dragData.sourceRackId === rack.id &&
@@ -617,59 +563,21 @@
 
     event.dataTransfer.dropEffect = isInternalMove ? "move" : "copy";
 
-    // Calculate target position from mouse Y using transform-aware coordinates
     const svg = event.currentTarget as SVGSVGElement;
-    const svgCoords = screenToSVG(svg, event.clientX, event.clientY);
-    const mouseY = svgCoords.y - RACK_PADDING;
+    const excludeIndex = isInternalMove ? dragData.sourceIndex : undefined;
 
-    const targetU = calculateDropPosition(
-      mouseY,
-      rack.height,
-      U_HEIGHT,
-      RACK_PADDING,
-    );
-
-    // Calculate X offset within rack interior for container hover detection and slot position
-    const xOffsetInRack = svgCoords.x - RAIL_WIDTH;
-
-    // Calculate slot position for half-width devices
-    const deviceSlotWidth = dragData.device.slot_width ?? 2;
-    const slotPosition = calculateDropSlotPosition(
-      xOffsetInRack,
-      interiorWidth,
-      deviceSlotWidth,
-    );
-    const isHalfWidth = deviceSlotWidth === 1;
-
-    // Detect if hovering over a container slot
-    containerHoverInfo = detectContainerHover(
+    const result = resolveDropTarget(
+      { svgElement: svg, clientX: event.clientX, clientY: event.clientY },
+      rackDims,
       rack,
       deviceLibrary,
       dragData.device,
-      targetU,
-      xOffsetInRack,
-      RACK_WIDTH,
-    );
-
-    // For internal moves, exclude the source device from collision checks
-    const excludeIndex = isInternalMove ? dragData.sourceIndex : undefined;
-    const feedback = getDropFeedback(
-      rack,
-      deviceLibrary,
-      dragData.device.u_height,
-      targetU,
-      excludeIndex,
       effectiveFaceFilter,
-      slotPosition,
+      excludeIndex,
     );
 
-    dropPreview = {
-      position: targetU,
-      height: dragData.device.u_height,
-      feedback,
-      slotPosition,
-      isHalfWidth,
-    };
+    containerHoverInfo = result.containerHoverInfo;
+    dropPreview = result.dropPreview;
   }
 
   function handleDragEnter(event: DragEvent) {
@@ -706,20 +614,12 @@
   }
 
   /**
-   * Handle device duplication (triggered by right-click context menu)
+   * Handle device duplication (triggered by RackDevice onduplicate callback)
    */
   function handleDeviceDuplicate(
     event: CustomEvent<{ rackId: string; deviceIndex: number }>,
   ) {
-    const { rackId, deviceIndex } = event.detail;
-    const result = layoutStore.duplicateDevice(rackId, deviceIndex);
-    if (result.error) {
-      toastStore.showToast(result.error, "error");
-    } else if (result.device) {
-      // Select the newly duplicated device
-      selectionStore.selectDevice(rackId, result.device.id);
-      toastStore.showToast("Device duplicated", "success");
-    }
+    contextActions.handleDuplicate(rack, { ...event.detail, x: 0, y: 0 });
   }
 
   /**
@@ -745,108 +645,34 @@
     deviceContextMenuTarget = null;
   }
 
-  /**
-   * Handle device context menu: Edit (select the device)
-   */
   function handleDeviceContextEdit() {
     if (!deviceContextMenuTarget) return;
-    const { rackId, deviceIndex } = deviceContextMenuTarget;
-    const device = rack.devices[deviceIndex];
-    if (device) {
-      selectionStore.selectDevice(rackId, device.id);
-    }
+    contextActions.handleEdit(rack, deviceContextMenuTarget);
     closeDeviceContextMenu();
   }
 
-  /**
-   * Handle device context menu: Duplicate
-   */
   function handleDeviceContextDuplicate() {
     if (!deviceContextMenuTarget) return;
-    const { rackId, deviceIndex } = deviceContextMenuTarget;
-    const result = layoutStore.duplicateDevice(rackId, deviceIndex);
-    if (result.error) {
-      toastStore.showToast(result.error, "error");
-    } else if (result.device) {
-      selectionStore.selectDevice(rackId, result.device.id);
-      toastStore.showToast("Device duplicated", "success");
-    }
+    contextActions.handleDuplicate(rack, deviceContextMenuTarget);
     closeDeviceContextMenu();
   }
 
-  /**
-   * Handle device context menu: Move Up
-   */
   function handleDeviceContextMoveUp() {
     if (!deviceContextMenuTarget) return;
-    const { deviceIndex } = deviceContextMenuTarget;
-    const device = rack.devices[deviceIndex];
-    if (!device) return;
-
-    const deviceType = getDeviceBySlug(device.device_type);
-    if (!deviceType) return;
-
-    // Move up = increase position (higher U number)
-    // Convert to human U, add 1, pass to moveDevice (which expects human U)
-    const currentPositionU = toHumanUnits(device.position);
-    const newPositionU = currentPositionU + 1;
-    layoutStore.moveDevice(rack.id, deviceIndex, newPositionU);
+    contextActions.handleMoveUp(rack, deviceLibrary, deviceContextMenuTarget);
     closeDeviceContextMenu();
   }
 
-  /**
-   * Handle device context menu: Move Down
-   */
   function handleDeviceContextMoveDown() {
     if (!deviceContextMenuTarget) return;
-    const { deviceIndex } = deviceContextMenuTarget;
-    const device = rack.devices[deviceIndex];
-    if (!device) return;
-
-    // Move down = decrease position (lower U number)
-    // Convert to human U, subtract 1, pass to moveDevice (which expects human U)
-    const currentPositionU = toHumanUnits(device.position);
-    const newPositionU = currentPositionU - 1;
-    if (newPositionU >= 1) {
-      layoutStore.moveDevice(rack.id, deviceIndex, newPositionU);
-    }
+    contextActions.handleMoveDown(rack, deviceContextMenuTarget);
     closeDeviceContextMenu();
   }
 
-  /**
-   * Handle device context menu: Delete
-   */
   function handleDeviceContextDelete() {
     if (!deviceContextMenuTarget) return;
-    const { rackId, deviceIndex } = deviceContextMenuTarget;
-    layoutStore.removeDeviceFromRack(rackId, deviceIndex);
-    selectionStore.clearSelection();
+    contextActions.handleDelete(deviceContextMenuTarget);
     closeDeviceContextMenu();
-  }
-
-  /**
-   * Get whether device can move up
-   */
-  function getCanMoveUp(deviceIndex: number): boolean {
-    const device = rack.devices[deviceIndex];
-    if (!device) return false;
-    const deviceType = getDeviceBySlug(device.device_type);
-    if (!deviceType) return false;
-    // Can move up if not at max position (both in human U)
-    const maxPosition = rack.height - deviceType.u_height + 1;
-    const positionU = toHumanUnits(device.position);
-    return positionU < maxPosition;
-  }
-
-  /**
-   * Get whether device can move down
-   */
-  function getCanMoveDown(deviceIndex: number): boolean {
-    const device = rack.devices[deviceIndex];
-    if (!device) return false;
-    // Convert to human U for comparison
-    const positionU = toHumanUnits(device.position);
-    return positionU > 1;
   }
 
   function handleDrop(event: DragEvent) {
@@ -856,174 +682,169 @@
 
     if (!event.dataTransfer) return;
 
-    // Safari compatibility: try application/json first, fall back to text/plain
     const data =
       event.dataTransfer.getData("application/json") ||
       event.dataTransfer.getData("text/plain");
     const dragData = parseDragData(data);
     if (!dragData) return;
 
-    // Determine if this is an internal move (same rack)
-    const isInternalMove =
-      dragData.type === "rack-device" &&
-      dragData.sourceRackId === rack.id &&
-      dragData.sourceIndex !== undefined;
-
-    // Determine if this is a cross-rack move (from different rack)
-    const isCrossRackMove =
-      dragData.type === "rack-device" &&
-      dragData.sourceRackId !== rack.id &&
-      dragData.sourceIndex !== undefined;
-
-    // Calculate target position using transform-aware coordinates
     const svg = event.currentTarget as SVGSVGElement;
-    const svgCoords = screenToSVG(svg, event.clientX, event.clientY);
-    const mouseY = svgCoords.y - RACK_PADDING;
-
-    const targetU = calculateDropPosition(
-      mouseY,
-      rack.height,
-      U_HEIGHT,
-      RACK_PADDING,
-    );
-
-    // Check for container slot drop (requires container to be selected)
-    // Calculate x offset within rack interior for slot detection and slot position
-    const xOffsetInRack = svgCoords.x - RAIL_WIDTH;
-
-    // Calculate slot position for half-width devices
-    const deviceSlotWidth = dragData.device.slot_width ?? 2;
-    const slotPosition = calculateDropSlotPosition(
-      xOffsetInRack,
-      interiorWidth,
-      deviceSlotWidth,
-    );
-
-    const containerTarget = detectContainerDropTarget(
+    const action = resolveDropAction(
+      { svgElement: svg, clientX: event.clientX, clientY: event.clientY },
+      rackDims,
       rack,
-      layoutStore.device_types,
-      targetU,
-      xOffsetInRack,
-      RACK_WIDTH,
+      deviceLibrary,
+      dragData,
+      effectiveFaceFilter,
       selectedDeviceId,
     );
 
-    if (containerTarget) {
-      // Drop into container slot
-      const success = layoutStore.placeInContainer(
-        rack.id,
-        dragData.device.slug,
-        containerTarget.containerId,
-        containerTarget.slotId,
-        containerTarget.position,
-      );
-
-      if (success) {
-        // Handle source cleanup for rack-device moves
-        if (
-          dragData.type === "rack-device" &&
-          dragData.sourceRackId &&
-          dragData.sourceIndex !== undefined
-        ) {
-          layoutStore.removeDeviceFromRack(
-            dragData.sourceRackId,
-            dragData.sourceIndex,
-          );
+    switch (action.kind) {
+      case "container-drop": {
+        const success = layoutStore.placeInContainer(
+          action.rackId,
+          action.slug,
+          action.containerTarget.containerId,
+          action.containerTarget.slotId,
+          action.containerTarget.position,
+        );
+        if (success) {
+          if (
+            action.dragData.type === "rack-device" &&
+            action.dragData.sourceRackId &&
+            action.dragData.sourceIndex !== undefined
+          ) {
+            layoutStore.removeDeviceFromRack(
+              action.dragData.sourceRackId,
+              action.dragData.sourceIndex,
+            );
+          }
+          return;
         }
+        // Container placement failed — fall through to rack-level via re-resolve
+        const fallbackAction = resolveDropAction(
+          { svgElement: svg, clientX: event.clientX, clientY: event.clientY },
+          rackDims,
+          rack,
+          deviceLibrary,
+          dragData,
+          effectiveFaceFilter,
+          null, // no selectedDeviceId = skip container detection
+        );
+        dispatchDropAction(fallbackAction);
         return;
       }
-      // If container placement failed, fall through to rack-level placement
-    }
-
-    // For internal moves, exclude the source device from collision checks
-    // Cross-rack and palette drops don't need exclusion
-    const excludeIndex = isInternalMove ? dragData.sourceIndex : undefined;
-    const feedback = getDropFeedback(
-      rack,
-      deviceLibrary,
-      dragData.device.u_height,
-      targetU,
-      excludeIndex,
-      effectiveFaceFilter,
-      slotPosition,
-    );
-
-    if (feedback === "valid") {
-      if (isInternalMove && dragData.sourceIndex !== undefined) {
-        // Internal move within same rack
+      case "internal-move":
         ondevicemove?.(
           new CustomEvent("devicemove", {
             detail: {
-              rackId: rack.id,
-              deviceIndex: dragData.sourceIndex,
-              newPosition: targetU,
-              slot_position: slotPosition,
+              rackId: action.rackId,
+              deviceIndex: action.deviceIndex,
+              newPosition: action.targetU,
+              slot_position: action.slotPosition,
             },
           }),
         );
-      } else if (
-        isCrossRackMove &&
-        dragData.sourceIndex !== undefined &&
-        dragData.sourceRackId
-      ) {
-        // Cross-rack move from a different rack
+        break;
+      case "cross-rack-move":
         ondevicemoverack?.(
           new CustomEvent("devicemoverack", {
             detail: {
-              sourceRackId: dragData.sourceRackId,
-              sourceIndex: dragData.sourceIndex,
-              targetRackId: rack.id,
-              targetPosition: targetU,
-              slot_position: slotPosition,
+              sourceRackId: action.sourceRackId,
+              sourceIndex: action.sourceIndex,
+              targetRackId: action.targetRackId,
+              targetPosition: action.targetU,
+              slot_position: action.slotPosition,
             },
           }),
         );
-      } else {
-        // External drop from palette (library-device type)
+        break;
+      case "palette-drop":
         ondevicedrop?.(
           new CustomEvent("devicedrop", {
             detail: {
-              rackId: rack.id,
-              slug: dragData.device.slug,
-              position: targetU,
-              slot_position: slotPosition,
+              rackId: action.rackId,
+              slug: action.slug,
+              position: action.targetU,
+              slot_position: action.slotPosition,
             },
           }),
         );
-      }
-    } else {
-      // Drop failed - show toast with reason
-      if (feedback === "blocked") {
-        // Find colliding devices
-        const collisions = findCollisions(
+        break;
+      case "invalid": {
+        const message = buildCollisionMessage(
+          action.feedback,
           rack,
           deviceLibrary,
-          dragData.device.u_height,
-          targetU,
-          excludeIndex,
+          action.deviceHeight,
+          action.targetU,
+          action.excludeIndex,
           effectiveFaceFilter,
         );
-
-        if (collisions.length > 0) {
-          // Build list of blocking device names using the helper function
-          const blockingNames = collisions.map((placed) =>
-            getDeviceDisplayName(placed, deviceLibrary),
-          );
-
-          // Format message based on number of collisions
-          const message =
-            blockingNames.length === 1
-              ? `Position blocked by ${blockingNames[0]}`
-              : `Position blocked by ${blockingNames.join(", ")}`;
-
+        if (message) {
           toastStore.showToast(message, "warning", 3000);
         }
-      } else if (feedback === "invalid") {
-        toastStore.showToast(
-          "Device doesn't fit at this position",
-          "warning",
-          3000,
+        break;
+      }
+    }
+  }
+
+  /**
+   * Dispatch a drop action for fallthrough cases (container fail → rack-level).
+   */
+  function dispatchDropAction(action: ReturnType<typeof resolveDropAction>) {
+    switch (action.kind) {
+      case "internal-move":
+        ondevicemove?.(
+          new CustomEvent("devicemove", {
+            detail: {
+              rackId: action.rackId,
+              deviceIndex: action.deviceIndex,
+              newPosition: action.targetU,
+              slot_position: action.slotPosition,
+            },
+          }),
         );
+        break;
+      case "cross-rack-move":
+        ondevicemoverack?.(
+          new CustomEvent("devicemoverack", {
+            detail: {
+              sourceRackId: action.sourceRackId,
+              sourceIndex: action.sourceIndex,
+              targetRackId: action.targetRackId,
+              targetPosition: action.targetU,
+              slot_position: action.slotPosition,
+            },
+          }),
+        );
+        break;
+      case "palette-drop":
+        ondevicedrop?.(
+          new CustomEvent("devicedrop", {
+            detail: {
+              rackId: action.rackId,
+              slug: action.slug,
+              position: action.targetU,
+              slot_position: action.slotPosition,
+            },
+          }),
+        );
+        break;
+      case "invalid": {
+        const message = buildCollisionMessage(
+          action.feedback,
+          rack,
+          deviceLibrary,
+          action.deviceHeight,
+          action.targetU,
+          action.excludeIndex,
+          effectiveFaceFilter,
+        );
+        if (message) {
+          toastStore.showToast(message, "warning", 3000);
+        }
+        break;
       }
     }
   }
@@ -1505,8 +1326,8 @@
     onmoveup={handleDeviceContextMoveUp}
     onmovedown={handleDeviceContextMoveDown}
     ondelete={handleDeviceContextDelete}
-    canMoveUp={getCanMoveUp(deviceContextMenuTarget.deviceIndex)}
-    canMoveDown={getCanMoveDown(deviceContextMenuTarget.deviceIndex)}
+    canMoveUp={contextActions.getCanMoveUp(rack, deviceLibrary, deviceContextMenuTarget.deviceIndex)}
+    canMoveDown={contextActions.getCanMoveDown(rack, deviceContextMenuTarget.deviceIndex)}
     onOpenChange={(open) => {
       if (!open) closeDeviceContextMenu();
     }}

@@ -26,6 +26,7 @@ import { findCollisions } from "$lib/utils/collision";
 import { getDeviceDisplayName } from "$lib/utils/device";
 import { screenToSVG } from "$lib/utils/coordinates";
 
+/** Pixel-based measurements of a rack, used by the drop calculation pipeline. */
 export interface RackDimensions {
   rackHeight: number;
   rackWidth: number;
@@ -35,12 +36,14 @@ export interface RackDimensions {
   railWidth: number;
 }
 
+/** SVG element and client coordinates for a drop or drag-over event. */
 export interface DropCoordinateInput {
   svgElement: SVGSVGElement;
   clientX: number;
   clientY: number;
 }
 
+/** Visual preview state for the drop target overlay rendered in the rack SVG. */
 export interface DropPreview {
   position: number;
   height: number;
@@ -49,6 +52,7 @@ export interface DropPreview {
   isHalfWidth: boolean;
 }
 
+/** Full result from drop target resolution, including preview and container hover state. */
 export interface DropTargetResult {
   targetU: number;
   xOffsetInRack: number;
@@ -59,6 +63,14 @@ export interface DropTargetResult {
   dropPreview: DropPreview;
 }
 
+/**
+ * Discriminated union describing the resolved action for a drop event.
+ * - `internal-move`: device moved within the same rack
+ * - `cross-rack-move`: device moved between racks
+ * - `palette-drop`: new device placed from the palette
+ * - `container-drop`: device placed into a container slot
+ * - `invalid`: drop blocked by collision or out-of-bounds
+ */
 export type DropAction =
   | {
       kind: "internal-move";

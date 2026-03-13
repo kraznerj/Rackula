@@ -6,8 +6,14 @@
 
 import type { DeviceFace, SlotPosition } from "$lib/types";
 import type { DropAction } from "$lib/utils/rack-drop-coordinator";
-import { buildCollisionMessage } from "$lib/utils/rack-drop-coordinator";
+import {
+  buildCollisionMessage,
+  resolveDropAction,
+  type DropCoordinateInput,
+  type RackDimensions,
+} from "$lib/utils/rack-drop-coordinator";
 import type { Rack, DeviceType } from "$lib/types";
+import type { getLayoutStore } from "$lib/stores/layout.svelte";
 import type { getToastStore } from "$lib/stores/toast.svelte";
 import { hapticError } from "$lib/utils/haptics";
 
@@ -43,15 +49,27 @@ export interface RackEventCallbacks {
  * Dispatch a resolved drop action by firing the appropriate custom event.
  * Handles invalid drops with toast messages and haptic feedback.
  */
+export interface DropDispatchContext {
+  rack: Rack;
+  deviceLibrary: DeviceType[];
+  faceFilter?: DeviceFace;
+  toastStore: ReturnType<typeof getToastStore>;
+  /** Required for container-drop handling in the pointer-drag path. */
+  layoutStore?: ReturnType<typeof getLayoutStore>;
+  /** Required for container-drop fallback re-resolution. */
+  coords?: DropCoordinateInput;
+  /** Required for container-drop fallback re-resolution. */
+  dims?: RackDimensions;
+}
+
+/**
+ * Dispatch a resolved drop action by firing the appropriate custom event.
+ * Handles invalid drops with toast messages and haptic feedback.
+ */
 export function dispatchDropAction(
   action: DropAction,
   callbacks: RackEventCallbacks,
-  collisionContext?: {
-    rack: Rack;
-    deviceLibrary: DeviceType[];
-    faceFilter?: DeviceFace;
-    toastStore: ReturnType<typeof getToastStore>;
-  },
+  collisionContext?: DropDispatchContext,
 ): void {
   switch (action.kind) {
     case "internal-move":
@@ -91,6 +109,44 @@ export function dispatchDropAction(
         }),
       );
       break;
+    case "container-drop": {
+      if (!collisionContext?.layoutStore) break;
+      const { layoutStore } = collisionContext;
+      const success = layoutStore.placeInContainer(
+        action.rackId,
+        action.slug,
+        action.containerTarget.containerId,
+        action.containerTarget.slotId,
+        action.containerTarget.position,
+      );
+      if (success) {
+        if (
+          action.dragData.type === "rack-device" &&
+          action.dragData.sourceRackId &&
+          action.dragData.sourceIndex !== undefined
+        ) {
+          layoutStore.removeDeviceFromRack(
+            action.dragData.sourceRackId,
+            action.dragData.sourceIndex,
+          );
+        }
+        break;
+      }
+      // Container placement failed — re-resolve without container detection
+      if (collisionContext.coords && collisionContext.dims) {
+        const fallbackAction = resolveDropAction(
+          collisionContext.coords,
+          collisionContext.dims,
+          collisionContext.rack,
+          collisionContext.deviceLibrary,
+          action.dragData,
+          collisionContext.faceFilter,
+          null, // skip container detection
+        );
+        dispatchDropAction(fallbackAction, callbacks, collisionContext);
+      }
+      break;
+    }
     case "invalid": {
       hapticError();
       if (collisionContext) {

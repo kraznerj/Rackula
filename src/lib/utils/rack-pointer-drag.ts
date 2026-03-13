@@ -82,9 +82,12 @@ export function attachPointerDragListeners(ctx: PointerDragContext): () => void 
     const deviceLibrary = ctx.getDeviceLibrary();
     const faceFilter = ctx.getFaceFilter();
 
+    const coords = { svgElement, clientX, clientY };
+    const dims = ctx.getRackDims();
+
     const action = resolveDropAction(
-      { svgElement, clientX, clientY },
-      ctx.getRackDims(),
+      coords,
+      dims,
       rack,
       deviceLibrary,
       { type: "rack-device", device, sourceRackId, sourceIndex: deviceIndex },
@@ -98,6 +101,9 @@ export function attachPointerDragListeners(ctx: PointerDragContext): () => void 
       deviceLibrary,
       faceFilter,
       toastStore: ctx.toastStore,
+      layoutStore: ctx.layoutStore,
+      coords,
+      dims,
     });
 
     ctx.onDragFinished();

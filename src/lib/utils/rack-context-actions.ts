@@ -9,31 +9,46 @@ import type { getSelectionStore } from "$lib/stores/selection.svelte";
 import type { getToastStore } from "$lib/stores/toast.svelte";
 import { toHumanUnits } from "$lib/utils/position";
 
+/** Identifies a right-clicked device and the screen position for the context menu. */
 export interface ContextMenuTarget {
   rackId: string;
   deviceIndex: number;
+  /** Screen X coordinate for menu positioning. */
   x: number;
+  /** Screen Y coordinate for menu positioning. */
   y: number;
 }
 
+/** Actions available from the rack device context menu. */
 export interface RackContextActions {
+  /** Select the device for editing in the side panel. */
   handleEdit(rack: RackType, target: ContextMenuTarget): void;
+  /** Duplicate the device at the next available position. */
   handleDuplicate(rack: RackType, target: ContextMenuTarget): void;
+  /** Move the device one U-position upward. */
   handleMoveUp(
     rack: RackType,
     deviceLibrary: DeviceType[],
     target: ContextMenuTarget,
   ): void;
+  /** Move the device one U-position downward. */
   handleMoveDown(rack: RackType, target: ContextMenuTarget): void;
+  /** Remove the device from the rack. */
   handleDelete(target: ContextMenuTarget): void;
+  /** Whether the device can move up (bounds check only; collisions validated by the store). */
   getCanMoveUp(
     rack: RackType,
     deviceLibrary: DeviceType[],
     deviceIndex: number,
   ): boolean;
+  /** Whether the device can move down (bounds check only; collisions validated by the store). */
   getCanMoveDown(rack: RackType, deviceIndex: number): boolean;
 }
 
+/**
+ * Create context menu action handlers bound to the given stores.
+ * Returns an object implementing {@link RackContextActions}.
+ */
 export function createContextMenuActions(
   layoutStore: ReturnType<typeof getLayoutStore>,
   selectionStore: ReturnType<typeof getSelectionStore>,

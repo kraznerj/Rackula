@@ -209,6 +209,7 @@ export function resolveDropAction(
   deviceLibrary: DeviceType[],
   dragData: DragData,
   faceFilter: DeviceFace | undefined,
+  /** Container selection ID. Pass null to skip container detection (used for fallthrough after failed container placement). */
   selectedDeviceId?: string | null,
   slotPositionOverride?: SlotPosition,
 ): DropAction {

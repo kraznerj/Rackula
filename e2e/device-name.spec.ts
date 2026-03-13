@@ -3,6 +3,7 @@ import {
   gotoWithRack,
   dragDeviceToRack,
   PLATFORM_MODIFIER,
+  loadFileFromDisk,
   locators,
 } from "./helpers";
 
@@ -74,11 +75,8 @@ test.describe("Device Custom Names", () => {
     // Reload with a fresh rack
     await gotoWithRack(page);
 
-    // Load the saved file via keyboard shortcut
-    const fileChooserPromise = page.waitForEvent("filechooser");
-    await page.keyboard.press(`${PLATFORM_MODIFIER}+o`);
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(savedPath);
+    // Load the saved file
+    await loadFileFromDisk(page, savedPath);
 
     // Wait for success toast to confirm load completed
     await expect(page.locator(locators.toast.success)).toBeVisible({
@@ -128,7 +126,7 @@ test.describe("Device Custom Names", () => {
     await expect(page.locator(locators.drawer.rightOpen)).not.toBeVisible();
 
     // Undo (Ctrl+Z)
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+z`);
 
     // Should restore original name
     await expect(page.locator(locators.rack.deviceName).first()).toHaveText(
@@ -136,7 +134,7 @@ test.describe("Device Custom Names", () => {
     );
 
     // Redo (Ctrl+Shift+Z)
-    await page.keyboard.press("Control+Shift+z");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+Shift+z`);
 
     // Should restore custom name
     await expect(page.locator(locators.rack.deviceName).first()).toHaveText(

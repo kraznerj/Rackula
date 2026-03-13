@@ -4,6 +4,7 @@ import {
   SMALL_RACK_SHARE,
   dragDeviceToRack,
   clickNewRack,
+  PLATFORM_MODIFIER,
   locators,
 } from "./helpers";
 
@@ -84,7 +85,7 @@ test.describe("Keyboard Shortcuts", () => {
     const downloadPromise = page.waitForEvent("download", { timeout: 5000 });
 
     // Press Ctrl+S
-    await page.keyboard.press("Control+s");
+    await page.keyboard.press(`${PLATFORM_MODIFIER}+s`);
 
     // Should trigger download
     const download = await downloadPromise;

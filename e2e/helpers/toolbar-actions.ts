@@ -5,6 +5,7 @@
  * Export/Share are direct toolbar buttons, and "New Rack" is in the sidebar Racks tab.
  */
 import type { Page } from "@playwright/test";
+import { PLATFORM_MODIFIER } from "./index";
 
 /**
  * Click the "New Rack" button in the sidebar Racks tab.
@@ -43,4 +44,43 @@ export async function clickLoad(page: Page): Promise<void> {
  */
 export async function clickExport(page: Page): Promise<void> {
   await page.getByTestId("btn-export").click();
+}
+
+/**
+ * Wait for the hidden file input to appear, then set the file directly.
+ * Shared by loadFileFromDisk() and loadFileFromDiskViaMenu().
+ */
+async function setFileAndWait(page: Page, filePath: string): Promise<void> {
+  const fileInput = page.locator('[data-testid="file-input-load"]');
+  await fileInput.waitFor({ state: "attached", timeout: 5000 });
+  await fileInput.setInputFiles(filePath);
+}
+
+/**
+ * Load a layout file using page.setInputFiles() on the hidden file input.
+ *
+ * Triggers the load action via Ctrl/Cmd+O, waits for the hidden file input
+ * to appear in the DOM, then sets the file directly — avoiding the flaky
+ * page.waitForEvent("filechooser") pattern.
+ */
+export async function loadFileFromDisk(
+  page: Page,
+  filePath: string,
+): Promise<void> {
+  await page.keyboard.press(`${PLATFORM_MODIFIER}+o`);
+  await setFileAndWait(page, filePath);
+}
+
+/**
+ * Load a layout file via the File menu dropdown + page.setInputFiles().
+ *
+ * Same as loadFileFromDisk but triggers load via the menu instead of
+ * keyboard shortcut — useful when the test needs to exercise the menu path.
+ */
+export async function loadFileFromDiskViaMenu(
+  page: Page,
+  filePath: string,
+): Promise<void> {
+  await clickLoad(page);
+  await setFileAndWait(page, filePath);
 }

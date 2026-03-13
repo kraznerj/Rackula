@@ -9,17 +9,27 @@
  */
 export function openFilePicker(): Promise<File | null> {
   return new Promise((resolve) => {
-    // Create a temporary file input
+    // Create a temporary file input and attach it to the DOM so that
+    // Playwright's page.setInputFiles() can target it in E2E tests.
     const input = document.createElement("input");
     input.type = "file";
+    input.setAttribute("data-testid", "file-input-load");
     // Accept ZIP files (including .Rackula.zip which is a zip file)
     // Using application/zip MIME type is more reliable across browsers
     input.accept = ".zip,application/zip,application/x-zip-compressed";
+    // Hide visually but keep in DOM for Playwright access
+    input.style.position = "absolute";
+    input.style.opacity = "0";
+    input.style.pointerEvents = "none";
+    input.style.width = "0";
+    input.style.height = "0";
+    document.body.appendChild(input);
 
     let resolved = false;
     // Track change event separately to prevent race condition with focus timeout
     // This flag is set immediately when change fires, before any other logic
     let changeReceived = false;
+    let cancelTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Handle file selection
     const handleChange = () => {
@@ -34,8 +44,11 @@ export function openFilePicker(): Promise<File | null> {
 
     // Handle cancel (window regains focus without a file being selected)
     const handleFocus = () => {
-      // Delay to allow change event to fire first
-      setTimeout(() => {
+      // 300ms debounce for cancel detection — no browser API exists to detect
+      // when the user cancels a file picker; this delay gives the change event
+      // enough time to fire before we assume cancellation.
+      if (cancelTimer) clearTimeout(cancelTimer);
+      cancelTimer = setTimeout(() => {
         // Only treat as cancel if no change event was received
         if (resolved || changeReceived) return;
         resolved = true;
@@ -45,8 +58,13 @@ export function openFilePicker(): Promise<File | null> {
     };
 
     const cleanup = () => {
+      if (cancelTimer) {
+        clearTimeout(cancelTimer);
+        cancelTimer = null;
+      }
       input.removeEventListener("change", handleChange);
       window.removeEventListener("focus", handleFocus);
+      input.remove();
     };
 
     input.addEventListener("change", handleChange);

@@ -196,12 +196,14 @@ describe("Layout Store - Raw Actions", () => {
       expect(store.rack.name).toBe("Updated Rack");
     });
 
-    it("updateRackRaw syncs layout name with rack name", () => {
+    it("updateRackRaw does not sync layout name with rack name", () => {
       const { store } = setupStoreWithRack();
+      const originalLayoutName = store.layout.name;
 
       store.updateRackRaw({ name: "New Name" });
 
-      expect(store.layout.name).toBe("New Name");
+      expect(store.rack.name).toBe("New Name");
+      expect(store.layout.name).toBe(originalLayoutName);
     });
 
     it("replaceRackRaw replaces entire rack", () => {
@@ -222,7 +224,6 @@ describe("Layout Store - Raw Actions", () => {
       expect(store.rack.name).toBe("Replaced Rack");
       expect(store.rack.height).toBe(24);
       expect(store.rack.width).toBe(10);
-      expect(store.layout.name).toBe("Replaced Rack");
     });
 
     it("clearRackDevicesRaw clears all devices", () => {

@@ -8,10 +8,10 @@ import { generateId } from "./device";
 
 /**
  * Create a new empty layout
- * @param name - Layout name (default: "Racky McRackface")
+ * @param name - Layout name (default: "My Layout")
  * @returns New Layout object with empty device_types (starter library is a runtime constant)
  */
-export function createLayout(name: string = "Racky McRackface"): Layout {
+export function createLayout(name: string = "My Layout"): Layout {
   return {
     version: VERSION,
     name,

@@ -200,6 +200,7 @@ export function getLayoutStore() {
     createNewLayout,
     loadLayout,
     resetLayout: resetLayoutStore,
+    setLayoutName,
 
     // Rack actions
     addRack,
@@ -447,12 +448,6 @@ function addRack(
     generateRackId(), // id - pass directly
   );
 
-  // If this is the first rack, sync layout name
-  const isFirstRack = layout.racks.length === 0;
-  if (isFirstRack) {
-    layout = { ...layout, name };
-  }
-
   // Use recorded action for undo/redo support
   const history = getHistoryStore();
   const adapter = getRackLifecycleCommandAdapter();
@@ -538,10 +533,8 @@ function addBayedRackGroup(
   );
 
   // Update layout state
-  const isFirstRack = layout.racks.length === 0;
   layout = {
     ...layout,
-    name: isFirstRack ? groupName : layout.name,
     racks: [...layout.racks, ...newRacks],
     rack_groups: [...(layout.rack_groups ?? []), group],
   };
@@ -1839,6 +1832,18 @@ function updateDeviceIp(
 }
 
 /**
+ * Set the layout name explicitly
+ * @param name - New layout name (whitespace-trimmed, empty strings ignored)
+ */
+function setLayoutName(name: string): void {
+  const trimmed = name.trim();
+  if (trimmed && trimmed !== layout.name) {
+    layout = { ...layout, name: trimmed };
+    markDirty();
+  }
+}
+
+/**
  * Mark the layout as having unsaved changes
  */
 function markDirty(): void {
@@ -2312,11 +2317,6 @@ function updateRackRaw(updates: Partial<Omit<Rack, "devices" | "view">>): void {
   if (!target) return;
 
   updateRackAtIndex(target.index, (rack) => ({ ...rack, ...updates }));
-
-  // Sync layout name with first rack name
-  if (updates.name !== undefined && target.index === 0) {
-    layout = { ...layout, name: updates.name };
-  }
 }
 
 /**
@@ -2329,11 +2329,6 @@ function replaceRackRaw(newRack: Rack): void {
   if (!target) return;
 
   updateRackAtIndex(target.index, () => newRack);
-
-  // Sync layout name with first rack name
-  if (target.index === 0) {
-    layout = { ...layout, name: newRack.name };
-  }
 }
 
 /**

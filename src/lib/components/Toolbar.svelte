@@ -97,6 +97,10 @@
   const toastStore = getToastStore();
   const viewportStore = getViewportStore();
 
+  // Inline layout name editing state
+  let isEditingName = $state(false);
+  let editNameValue = $state("");
+
   // View mode labels for tooltip
   const displayModeLabels: Record<DisplayMode, string> = {
     label: "Labels",
@@ -214,6 +218,30 @@
     analytics.trackToolbarClick("help");
     onhelp?.();
   }
+
+  function startEditingName() {
+    editNameValue = layoutStore.layout.name;
+    isEditingName = true;
+  }
+
+  function commitName() {
+    layoutStore.setLayoutName(editNameValue);
+    isEditingName = false;
+  }
+
+  function cancelEditingName() {
+    isEditingName = false;
+  }
+
+  function handleNameKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitName();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditingName();
+    }
+  }
 </script>
 
 <header class="toolbar">
@@ -231,6 +259,38 @@
       </button>
     </Tooltip>
   </div>
+
+  <!-- Layout name (desktop only) -->
+  {#if !viewportStore.isMobile}
+    <div class="toolbar-section toolbar-name" data-testid="layout-name">
+      {#if isEditingName}
+        <input
+          class="toolbar-name-input"
+          type="text"
+          bind:value={editNameValue}
+          onkeydown={handleNameKeydown}
+          onblur={commitName}
+          aria-label="Layout name"
+          data-testid="layout-name-input"
+          autofocus
+        />
+      {:else}
+        <button
+          class="toolbar-name-display"
+          type="button"
+          onclick={startEditingName}
+          aria-label="Rename layout"
+          title="Click to rename"
+          data-testid="layout-name-display"
+        >
+          <span class="toolbar-name-text">{layoutStore.layout.name}</span>
+          <svg class="toolbar-name-pencil" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+          </svg>
+        </button>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Center: Action cluster (desktop only) -->
   {#if !viewportStore.isMobile}
@@ -421,6 +481,74 @@
 
   .toolbar-left {
     flex: 0 0 auto;
+  }
+
+  .toolbar-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    justify-content: flex-start;
+    padding: 0 var(--space-3);
+  }
+
+  .toolbar-name-display {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    max-width: 100%;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--colour-text);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .toolbar-name-display:hover {
+    border-color: var(--colour-border);
+    background: var(--colour-surface-hover);
+  }
+
+  .toolbar-name-display:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--colour-bg),
+      0 0 0 4px var(--colour-focus-ring);
+  }
+
+  .toolbar-name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .toolbar-name-pencil {
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .toolbar-name-display:hover .toolbar-name-pencil {
+    opacity: 0.6;
+  }
+
+  .toolbar-name-input {
+    width: 100%;
+    max-width: 300px;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--dracula-cyan);
+    border-radius: var(--radius-md);
+    background: var(--colour-surface);
+    color: var(--colour-text);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    font-family: inherit;
+    outline: none;
   }
 
   .toolbar-center {

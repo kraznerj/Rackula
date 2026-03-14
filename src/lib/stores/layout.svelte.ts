@@ -1627,6 +1627,7 @@ function placeInContainer(
     !layout.device_types.find((dt) => dt.slug === deviceTypeSlug)
   ) {
     layout.device_types = [...layout.device_types, childType];
+    isDirty = true;
   }
 
   if (!containerType || !childType) return false;
@@ -2784,6 +2785,7 @@ function placeDeviceRecorded(
     !layout.device_types.find((dt) => dt.slug === deviceTypeSlug)
   ) {
     layout.device_types = [...layout.device_types, deviceType];
+    isDirty = true;
   }
 
   // If not found, device type doesn't exist

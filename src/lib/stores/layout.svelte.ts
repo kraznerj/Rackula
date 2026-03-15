@@ -1621,15 +1621,6 @@ function placeInContainer(
   );
   const childType = findDeviceType(deviceTypeSlug, layout.device_types);
 
-  // Auto-import if found in starter/brand but not yet in layout
-  if (
-    childType &&
-    !layout.device_types.find((dt) => dt.slug === deviceTypeSlug)
-  ) {
-    layout.device_types = [...layout.device_types, childType];
-    isDirty = true;
-  }
-
   if (!containerType || !childType) return false;
 
   // Check collision within container
@@ -1658,12 +1649,23 @@ function placeInContainer(
     ports: instantiatePorts(childType),
   };
 
-  // Use command for undo/redo
+  // Use command for undo/redo — batch with auto-import if needed
   const deviceName = childType.model ?? childType.slug;
   const history = getHistoryStore();
   const adapter = getCommandStoreAdapter();
-  const command = createPlaceDeviceCommand(placedDevice, adapter, deviceName);
-  history.execute(command);
+  const placeCommand = createPlaceDeviceCommand(placedDevice, adapter, deviceName);
+
+  const autoImportType = needsAutoImport(deviceTypeSlug);
+  if (autoImportType) {
+    const importCommand = createAddDeviceTypeCommand(autoImportType, adapter);
+    const batch = createBatchCommand(
+      `Place ${deviceName} in container (auto-import)`,
+      [importCommand, placeCommand],
+    );
+    history.execute(batch);
+  } else {
+    history.execute(placeCommand);
+  }
   isDirty = true;
 
   return true;
@@ -2517,6 +2519,18 @@ function isCustomDeviceType(slug: string): boolean {
 }
 
 /**
+ * Check if a device type needs auto-importing from starter/brand packs.
+ * Returns the DeviceType if import is needed, null otherwise.
+ */
+function needsAutoImport(slug: string): DeviceType | null {
+  if (layout.device_types.find((dt) => dt.slug === slug)) {
+    return null;
+  }
+  const deviceType = findDeviceType(slug, layout.device_types);
+  return deviceType ?? null;
+}
+
+/**
  * Check if a device type has any placements in any rack
  */
 function hasDeviceTypePlacements(slug: string): boolean {
@@ -2779,15 +2793,6 @@ function placeDeviceRecorded(
   // Find device type across all sources (layout → starter → brand)
   const deviceType = findDeviceType(deviceTypeSlug, layout.device_types);
 
-  // Auto-import if found in starter/brand but not yet in layout
-  if (
-    deviceType &&
-    !layout.device_types.find((dt) => dt.slug === deviceTypeSlug)
-  ) {
-    layout.device_types = [...layout.device_types, deviceType];
-    isDirty = true;
-  }
-
   // If not found, device type doesn't exist
   if (!deviceType) {
     debug.devicePlace({
@@ -2851,9 +2856,19 @@ function placeDeviceRecorded(
 
   const history = getHistoryStore();
   const adapter = getCommandStoreAdapter();
+  const placeCommand = createPlaceDeviceCommand(device, adapter, deviceName);
 
-  const command = createPlaceDeviceCommand(device, adapter, deviceName);
-  history.execute(command);
+  const autoImportType = needsAutoImport(deviceTypeSlug);
+  if (autoImportType) {
+    const importCommand = createAddDeviceTypeCommand(autoImportType, adapter);
+    const batch = createBatchCommand(
+      `Place ${deviceName} (auto-import)`,
+      [importCommand, placeCommand],
+    );
+    history.execute(batch);
+  } else {
+    history.execute(placeCommand);
+  }
   isDirty = true;
 
   debug.devicePlace({

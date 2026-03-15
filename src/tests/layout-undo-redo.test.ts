@@ -308,6 +308,74 @@ describe("Layout Store - Undo/Redo Integration", () => {
     });
   });
 
+  describe("Auto-import with placement", () => {
+    it("placing a starter device auto-imports its type", () => {
+      const { store, rack } = setupStoreWithRack();
+      const typeCountBefore = store.device_types.length;
+
+      store.placeDeviceRecorded(rack.id, "1u-server", 5);
+
+      expect(store.device_types.length).toBe(typeCountBefore + 1);
+      expect(
+        store.device_types.find((dt) => dt.slug === "1u-server"),
+      ).toBeDefined();
+      expect(store.rack.devices.length).toBe(1);
+    });
+
+    it("undo reverses both placement and auto-import", () => {
+      const { store, rack } = setupStoreWithRack();
+      const typeCountBefore = store.device_types.length;
+
+      store.placeDeviceRecorded(rack.id, "1u-server", 5);
+      expect(store.device_types.length).toBe(typeCountBefore + 1);
+      expect(store.rack.devices.length).toBe(1);
+
+      store.undo();
+
+      expect(store.rack.devices.length).toBe(0);
+      expect(store.device_types.length).toBe(typeCountBefore);
+      expect(
+        store.device_types.find((dt) => dt.slug === "1u-server"),
+      ).toBeUndefined();
+    });
+
+    it("redo restores both placement and auto-import", () => {
+      const { store, rack } = setupStoreWithRack();
+      const typeCountBefore = store.device_types.length;
+
+      store.placeDeviceRecorded(rack.id, "1u-server", 5);
+      store.undo();
+
+      expect(store.device_types.length).toBe(typeCountBefore);
+      expect(store.rack.devices.length).toBe(0);
+
+      store.redo();
+
+      expect(store.device_types.length).toBe(typeCountBefore + 1);
+      expect(
+        store.device_types.find((dt) => dt.slug === "1u-server"),
+      ).toBeDefined();
+      expect(store.rack.devices.length).toBe(1);
+    });
+
+    it("failed placement does not import type", () => {
+      const { store, rack } = setupStoreWithRack();
+
+      // Place first device successfully
+      store.placeDeviceRecorded(rack.id, "1u-server", 5);
+      const typeCountAfterFirst = store.device_types.length;
+
+      // Try to place a different starter device at the same position (collision)
+      store.placeDeviceRecorded(rack.id, "1u-storage", 5);
+
+      // Second type should NOT have been imported
+      expect(store.device_types.length).toBe(typeCountAfterFirst);
+      expect(
+        store.device_types.find((dt) => dt.slug === "1u-storage"),
+      ).toBeUndefined();
+    });
+  });
+
   describe("Multiple Operations", () => {
     it("can undo multiple operations in sequence", () => {
       const { store, rack } = setupStoreWithRack();

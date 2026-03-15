@@ -1655,7 +1655,7 @@ function placeInContainer(
   const adapter = getCommandStoreAdapter();
   const placeCommand = createPlaceDeviceCommand(placedDevice, adapter, deviceName);
 
-  const autoImportType = needsAutoImport(deviceTypeSlug);
+  const autoImportType = needsAutoImport(deviceTypeSlug, childType);
   if (autoImportType) {
     const importCommand = createAddDeviceTypeCommand(autoImportType, adapter);
     const batch = createBatchCommand(
@@ -2520,14 +2520,13 @@ function isCustomDeviceType(slug: string): boolean {
 
 /**
  * Check if a device type needs auto-importing from starter/brand packs.
+ * Accepts the already-resolved DeviceType to avoid a redundant findDeviceType lookup.
  * Returns the DeviceType if import is needed, null otherwise.
  */
-function needsAutoImport(slug: string): DeviceType | null {
-  if (layout.device_types.find((dt) => dt.slug === slug)) {
-    return null;
-  }
-  const deviceType = findDeviceType(slug, layout.device_types);
-  return deviceType ?? null;
+function needsAutoImport(slug: string, resolvedType: DeviceType | undefined): DeviceType | null {
+  if (!resolvedType) return null;
+  if (layout.device_types.find((dt) => dt.slug === slug)) return null;
+  return resolvedType;
 }
 
 /**
@@ -2858,7 +2857,7 @@ function placeDeviceRecorded(
   const adapter = getCommandStoreAdapter();
   const placeCommand = createPlaceDeviceCommand(device, adapter, deviceName);
 
-  const autoImportType = needsAutoImport(deviceTypeSlug);
+  const autoImportType = needsAutoImport(deviceTypeSlug, deviceType);
   if (autoImportType) {
     const importCommand = createAddDeviceTypeCommand(autoImportType, adapter);
     const batch = createBatchCommand(
